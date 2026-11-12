@@ -1,10 +1,10 @@
 // Service worker: offline app shell + notification clicks.
 // Network-first so updates show up immediately; falls back to cache when offline.
-const CACHE = 'nutritrack-v3';
+const CACHE = 'nutritrack-v4';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
   'js/app.js', 'js/store.js', 'js/nutrition.js', 'js/foods.js', 'js/training.js',
-  'js/supplements.js', 'js/pacing.js', 'js/reminders.js',
+  'js/supplements.js', 'js/pacing.js', 'js/reminders.js', 'js/garden.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

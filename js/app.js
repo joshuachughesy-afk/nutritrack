@@ -3,6 +3,7 @@ import { FOODS } from './foods.js';
 import { TRAINING, LOADS } from './training.js';
 import { DEFAULT_SCHEDULE, computePace, microGaps, toMin } from './pacing.js';
 import { DEFAULT_REMINDERS, dueEvents, notifSupport, requestNotifications, registerSW, showNotification } from './reminders.js';
+import { STAGES, SPECIES, TREE_DAY, stageFor, levelInfo, scoreDay, growthTips, summarizeHistory, treeSVG } from './garden.js';
 import { SUPP_TEMPLATES, timingAdvice, analyzeStack, dailyCreatine, creatinePerDose } from './supplements.js';
 import {
   MACROS, MICROS, ACTIVITY, GOALS, computeTargets, scaleNutrients, sumNutrients, emptyNutrients,
@@ -49,6 +50,61 @@ const dayTotals = key => {
   };
 };
 
+// ---- Garden helpers ----
+const seed = () => store.get().garden?.seed ?? 'oak';
+const speciesFor = key => store.dayData(key).species ?? store.dayData(key).garden?.species ?? seed();
+const hasLog = key => store.day(key).length > 0;
+
+function liveScore(key) {
+  const t = targetsFor(key);
+  const day = store.dayData(key);
+  const foodTot = sumNutrients(store.day(key).map(e => e.n));
+  const suppTot = sumNutrients((day.supps ?? []).map(x => x.n));
+  const totals = sumNutrients([foodTot, suppTot]);
+  const waterMl = (day.water ?? []).reduce((a, w) => a + w.ml, 0);
+  const active = store.get().supplements.filter(x => x.active !== false);
+  const dosesScheduled = active.reduce((a, x) => a + x.times.length, 0);
+  const dosesTaken = (day.supps ?? []).filter(x => active.some(a => a.id === x.suppId)).length;
+  const res = scoreDay({ targets: t, totals, suppTotals: suppTot, waterMl, dosesScheduled, dosesTaken: Math.min(dosesTaken, dosesScheduled) });
+  return { ...res, t, totals, waterMl, dosesScheduled, dosesTaken };
+}
+
+// Freeze finished days so later profile changes don't rewrite your garden.
+function finalizeGarden() {
+  const s = store.get(), today = dateKey(new Date());
+  const pending = Object.keys(s.logs).filter(k => k < today && hasLog(k) && !s.logs[k].garden);
+  if (!pending.length || !s.profile) return;
+  const results = pending.map(k => [k, liveScore(k).score, speciesFor(k)]);
+  store.update(st => results.forEach(([k, score, species]) => { st.logs[k].garden = { score, species }; }));
+}
+
+function gardenHistory() {
+  const s = store.get(), today = dateKey(new Date());
+  const logged = Object.keys(s.logs).filter(hasLog).sort();
+  const start = logged[0] && logged[0] < today ? logged[0] : today;
+  const days = [];
+  for (let k = start; k <= today; k = shiftDate(k, 1)) {
+    const g = s.logs[k]?.garden;
+    days.push({ date: k, score: g ? g.score : k === today ? (hasLog(k) ? liveScore(k).score : null) : null });
+  }
+  return { days, ...summarizeHistory(days, today) };
+}
+
+function celebrate(key, stage) {
+  const s = store.get();
+  const day = store.dayData(key);
+  if (key === dateKey(new Date()) && stage > (day.peakStage ?? 0)) {
+    store.update(st => { store.ensureDay(st, key).peakStage = stage; });
+    if (stage >= 1) setTimeout(() => toast(`🌱 Your tree grew into a ${STAGES[stage].name.toLowerCase()}!`), 50);
+  }
+  const lvl = levelInfo(gardenHistory().points).level;
+  if (lvl > (s.garden?.lastLevel ?? 1)) {
+    store.update(st => { st.garden = { ...(st.garden ?? {}), lastLevel: lvl }; });
+    const unlocked = Object.values(SPECIES).filter(x => x.level === lvl).map(x => x.name);
+    setTimeout(() => toast(`🎉 Garden level ${lvl}!${unlocked.length ? ' Unlocked: ' + unlocked.join(', ') : ''}`), 1200);
+  }
+}
+
 const allFoods = () => [...store.get().customFoods, ...FOODS];
 const findFood = id => allFoods().find(f => f.id === id);
 
@@ -58,7 +114,7 @@ function render() {
   if (!s.profile && ui.view !== 'profile') ui.view = 'profile';
   document.querySelectorAll('[data-nav]').forEach(b => b.setAttribute('aria-current', b.dataset.nav === ui.view ? 'page' : 'false'));
   const main = $('#main');
-  main.innerHTML = ui.view === 'today' ? viewToday() : ui.view === 'foods' ? viewFoods() : ui.view === 'supps' ? viewSupps() : viewProfile();
+  main.innerHTML = ui.view === 'today' ? viewToday() : ui.view === 'foods' ? viewFoods() : ui.view === 'supps' ? viewSupps() : ui.view === 'garden' ? viewGarden() : viewProfile();
   if (ui.view === 'profile') syncProfileUnits();
 }
 
@@ -162,6 +218,7 @@ function viewToday() {
       <button class="training-badge" data-nav="profile"><span class="chip ${emphasisClass(t.training.emphasis)}">${t.training.name} · ${t.training.emphasis}</span>
         <span class="muted small">C ${t.gkg.carbs.toFixed(1)} · P ${t.gkg.protein.toFixed(1)} · F ${t.gkg.fat.toFixed(1)} g/kg</span></button>
     </section>
+    ${viewTreeCard()}
     ${ui.date === dateKey(new Date()) ? viewPace(t) : ''}
     <div class="two-col">${viewWater(t, day)}${viewSuppChecklist(day)}</div>
     ${meals}
@@ -342,6 +399,106 @@ function viewReminders() {
       <p class="span-2 muted small">Reminders fire while NutriTrack is open or running in the background. Install it to your home screen for the most reliable alerts (on iPhone: Share → Add to Home Screen, iOS 16.4+). A fully closed web app can't wake itself; that would need a push server, which is planned.</p>
     </form>
   </section>`;
+}
+
+function viewTreeCard() {
+  const key = ui.date, today = dateKey(new Date());
+  const isToday = key === today;
+  const frozen = store.dayData(key).garden;
+  if (!isToday && !frozen && !hasLog(key)) return '';
+  const live = liveScore(key);
+  const score = frozen ? frozen.score : live.score;
+  const stage = stageFor(score);
+  const species = speciesFor(key);
+  const next = STAGES[stage + 1];
+  const h = isToday ? gardenHistory() : null;
+  const tips = isToday ? growthTips({ ...live, targets: live.t, gaps: microGaps({ targets: live.t, totals: live.totals, foods: allFoods(), limit: 2 }), waterFmt: fmtWater }) : [];
+  if (isToday) celebrate(key, stage);
+  return `<section class="card tree-card">
+    <button class="tree-stage" data-nav="garden" aria-label="Open your garden">${treeSVG(stage, species, { size: 128, id: 'today' })}</button>
+    <div class="tree-info">
+      <div class="tree-title"><strong>${STAGES[stage].name}</strong><span class="tree-score num">${score}<span class="muted">/100</span></span></div>
+      <div class="stage-track">${STAGES.slice(1).map(st => `<span class="${score >= st.min ? 'done' : ''}" title="${st.name} at ${st.min}"></span>`).join('')}</div>
+      <p class="muted small">${isToday ? (next ? `${next.min - score} more points to grow into a ${next.name.toLowerCase()}.` : STAGES[stage].blurb) : `Final tree for this day. ${score >= TREE_DAY ? 'Counted as a tree day.' : ''}`}</p>
+      ${h ? `<div class="streak-row"><span>🔥 <strong>${h.streak}</strong>-day streak</span>${h.shields ? `<span title="Each covers one missed day">🛡️ ${h.shields}</span>` : ''}</div>` : ''}
+      ${tips.length ? `<ul class="grow-tips">${tips.map(x => `<li><span class="gain">+${Math.round(x.gain)}</span>${esc(x.text)}</li>`).join('')}</ul>` : ''}
+    </div>
+  </section>`;
+}
+
+function viewGarden() {
+  finalizeGarden();
+  const s = store.get();
+  const today = dateKey(new Date());
+  const h = gardenHistory();
+  const lv = levelInfo(h.points);
+  const nextSpecies = Object.entries(SPECIES).filter(([, x]) => x.level > lv.level).sort((a, b) => a[1].level - b[1].level)[0];
+  const scores = Object.fromEntries(h.days.map(d => [d.date, d.score]));
+
+  // Forest grid: last 8 weeks, Monday-first rows.
+  const end = today;
+  let startKey = shiftDate(end, -7 * 7);
+  while (weekday(startKey) !== 1) startKey = shiftDate(startKey, -1);
+  const cells = [];
+  for (let k = startKey; ; k = shiftDate(k, 1)) {
+    cells.push(k);
+    if (k >= end && weekday(k) === 0) break;
+    if (cells.length > 70) break;
+  }
+  const cell = k => {
+    if (k > today) return `<div class="plot future"></div>`;
+    const sc = scores[k];
+    const mark = h.marks[k];
+    const label = `${prettyDate(k)}: ${sc != null ? sc + ' points' : 'no log'}`;
+    if (sc != null) return `<button class="plot ${k === today ? 'is-today' : ''}" data-action="goto-day" data-date="${k}" title="${label}" aria-label="${label}">${treeSVG(stageFor(sc), speciesFor(k), { size: 38, id: 'c' + k.replace(/-/g, '') })}</button>`;
+    return `<div class="plot empty ${mark === 'shielded' ? 'shielded' : ''}" title="${label}">${mark === 'shielded' ? '🛡️' : ''}</div>`;
+  };
+
+  return `
+    <h2 class="view-title">Your garden</h2>
+    <section class="card garden-hero">
+      <div class="level-badge"><span class="small muted">Level</span><strong>${lv.level}</strong></div>
+      <div class="level-info">
+        <div class="level-row"><strong>${h.points.toLocaleString()} growth points</strong>${lv.next ? `<span class="muted small">${(lv.next - h.points).toLocaleString()} to level ${lv.level + 1}</span>` : '<span class="muted small">Max level</span>'}</div>
+        <div class="bar"><div class="bar-fill level-fill" style="width:${lv.progress * 100}%"></div></div>
+        ${nextSpecies ? `<p class="small muted">Next unlock: <strong>${nextSpecies[1].name}</strong> at level ${nextSpecies[1].level}</p>` : '<p class="small muted">Every species unlocked 🌳</p>'}
+      </div>
+    </section>
+    <div class="stat-grid">
+      <div class="card stat"><span>🔥</span><strong class="num">${h.streak}</strong><span class="muted small">day streak</span></div>
+      <div class="card stat"><span>🏆</span><strong class="num">${h.best}</strong><span class="muted small">best streak</span></div>
+      <div class="card stat"><span>🌳</span><strong class="num">${h.treeDays}</strong><span class="muted small">tree days</span></div>
+      <div class="card stat"><span>🛡️</span><strong class="num">${h.shields}</strong><span class="muted small">shields</span></div>
+    </div>
+    <section class="card">
+      <header class="meal-head"><h3>Forest</h3><span class="muted small">last 8 weeks · tap a tree to open that day</span></header>
+      <div class="forest">
+        ${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(d => `<span class="forest-day muted small">${d}</span>`).join('')}
+        ${cells.map(cell).join('')}
+      </div>
+    </section>
+    <section class="card">
+      <h3>Choose today's seed</h3>
+      <p class="muted small">Today's tree grows as this species. Higher garden levels unlock more.</p>
+      <div class="seed-grid">${Object.entries(SPECIES).map(([k, x]) => {
+        const locked = x.level > lv.level;
+        return `<button class="seed ${k === seed() ? 'is-selected' : ''}" data-action="pick-seed" data-seed="${k}" ${locked ? 'disabled' : ''} aria-pressed="${k === seed()}">
+          ${treeSVG(4, k, { size: 64, id: 's' + k, muted: locked })}<span>${x.name}</span>${locked ? `<span class="muted small">🔒 Level ${x.level}</span>` : ''}</button>`;
+      }).join('')}</div>
+    </section>
+    <section class="card">
+      <h3>How your tree grows</h3>
+      <div class="table-wrap"><table><tbody>
+        <tr><th scope="row">Calories</th><td>20</td><td class="muted small">full within ±10% of target; more than 25% over caps the day at a sapling</td></tr>
+        <tr><th scope="row">Protein</th><td>15</td><td class="muted small">full at 90%+ of target</td></tr>
+        <tr><th scope="row">Carbs / Fat</th><td>10 / 5</td><td class="muted small">full within ±15% / ±20%</td></tr>
+        <tr><th scope="row">Micronutrients</th><td>20</td><td class="muted small">average coverage; −2 for each upper limit exceeded</td></tr>
+        <tr><th scope="row">Water</th><td>15</td><td class="muted small">share of today's water goal</td></tr>
+        <tr><th scope="row">Supplements</th><td>10</td><td class="muted small">doses taken (with no stack, the rest scales up to 100)</td></tr>
+      </tbody></table></div>
+      <p class="small">${STAGES.map((st, i) => `<span class="stage-chip">${st.name} ${st.min}+</span>`).join(' ')}</p>
+      <p class="muted small">A day of ${TREE_DAY}+ points is a <strong>tree day</strong> and extends your streak. Every 7-day streak earns a 🛡️ shield (hold up to 2) that covers one missed day, so a busy day doesn't wipe out your progress.</p>
+    </section>`;
 }
 
 function viewFoods() {
@@ -685,6 +842,12 @@ document.addEventListener('click', e => {
       render();
     }
   }
+  else if (a === 'pick-seed') {
+    const k = el.dataset.seed;
+    store.update(st => { st.garden = { ...(st.garden ?? {}), seed: k }; store.ensureDay(st, dateKey(new Date())).species = k; });
+    render(); toast(`🌱 Planting ${SPECIES[k].name.toLowerCase()} today`);
+  }
+  else if (a === 'goto-day') { ui.date = el.dataset.date; ui.view = 'today'; render(); window.scrollTo(0, 0); }
   else if (a === 'goto-reminders') { ui.view = 'profile'; render(); document.getElementById('reminders')?.scrollIntoView({ behavior: 'smooth' }); }
   else if (a === 'test-notif') {
     (async () => {
@@ -854,5 +1017,6 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2000);
 }
 
+finalizeGarden();
 render();
 tick();

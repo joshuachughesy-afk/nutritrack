@@ -21,8 +21,8 @@ Then open http://localhost:8765. To use it on your phone, host the folder on any
 | **1b. Training types** | Database of 10 training types with g/kg macro ranges (ACSM/ISSN); carb-first allocation for hybrid and endurance; load-based placement within ranges; warnings, fueling tips and a comparison table | ✅ Done |
 | **2. Water + supplements** | Water tracking (35 ml/kg, more on training days scaled by load); 15 supplement templates plus custom ones from your label; up to 3 dose times each; daily checklist with "due" flags; taken doses count toward micronutrients (striped bar segment); upper-limit checks with supplement-only limits applied correctly; iron + calcium/zinc timing conflicts; timing tips for each supplement; training and rest days with carb cycling that keeps the weekly calorie average unchanged | ✅ Done |
 | **3. Notifications + pacing** | Pace engine built on your meal times (expected share of the day's food and water by now); Pace check card with bars and an "expected by now" marker; evening micronutrient gaps with foods that fill them; reminders for supplement doses, water when behind pace, and up to 3 daily check-ins (each sent once, never repeated); system notifications through a service worker, with stacked in-app banners as fallback; installable PWA (manifest, icons, offline app shell) | ✅ Done |
-| **4. Progression** | Seeds → sprouts → trees that grow from daily goals met (macros, micros, water, supplements); a garden/forest view; streaks with forgiveness | ⏳ Next |
-| **5. Extended data** | Open Food Facts / USDA search, barcode scanning, weekly trends, adaptive TDEE from weight trend | Planned |
+| **4. Progression** | Each day plants a seed that grows live with your score (calories 20, protein 15, carbs 10, fat 5, micronutrients 20, water 15, supplements 10): seed → sprout → sapling → young tree → mighty → flourishing. "Grow your tree" tips ranked by points gained. Tree days (65+) build streaks; every 7-day streak earns a shield (max 2) that covers a missed day. Growth points raise your garden level and unlock 6 tree species. Garden tab with an 8-week forest; finished days are frozen so later changes don't rewrite history | ✅ Done |
+| **5. Extended data** | Open Food Facts / USDA search, barcode scanning, weekly trends, adaptive TDEE from weight trend | ⏳ Next |
 
 ## Structure
 
@@ -36,6 +36,7 @@ js/supplements.js  Supplement templates, timing advice, stack analysis
 js/pacing.js       Time-of-day pace engine, micronutrient gap suggestions
 js/reminders.js    Reminder rules (pure) + notification delivery
 sw.js              Service worker (offline shell, notification clicks)
+js/garden.js       Day scoring, streaks/shields, levels, species, tree SVGs
 js/foods.js        Built-in reference foods (per 100 g)
 js/store.js        localStorage persistence
 docs/research.md   Competitive research and pros/cons

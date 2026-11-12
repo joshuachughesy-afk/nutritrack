@@ -273,3 +273,53 @@ label.check input { width: auto; accent-color: var(--accent); }
 }
 .banner-item span { flex: 1; padding-top: 6px; }
 @keyframes slide-in { from { transform: translateY(-20px); opacity: 0; } }
+
+/* Stage 4: garden */
+.tree-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center;
+  background: linear-gradient(180deg, color-mix(in srgb, #8fd3ff 14%, var(--surface)) 0%, var(--surface) 70%); }
+.tree-stage { border: 0; background: none; padding: 0; cursor: pointer; }
+.tree { display: block; overflow: visible; }
+.tree-stage .tree { animation: sway 6s ease-in-out infinite; transform-origin: 50% 95%; }
+@keyframes sway { 50% { transform: rotate(1.2deg); } }
+@media (prefers-reduced-motion: reduce) { .tree-stage .tree { animation: none; } }
+.tree-muted { filter: grayscale(1); opacity: .45; }
+.tree-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.tree-title strong { font-size: 1.15rem; }
+.tree-score { font-size: 1.4rem; font-weight: 700; }
+.tree-score .muted { font-size: .85rem; font-weight: 500; }
+.stage-track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 6px 0; }
+.stage-track span { height: 6px; border-radius: 999px; background: var(--surface-2); }
+.stage-track span.done { background: var(--met); }
+.tree-info p { margin: 4px 0; }
+.streak-row { display: flex; gap: 14px; font-size: .9rem; margin: 6px 0; }
+.grow-tips { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 5px; font-size: .86rem; }
+.grow-tips li { display: flex; gap: 8px; align-items: baseline; }
+.gain { flex: none; font-weight: 700; font-size: .75rem; color: var(--met); background: color-mix(in srgb, var(--met) 14%, transparent); border-radius: 999px; padding: 1px 7px; }
+@media (max-width: 420px) { .tree-card { grid-template-columns: 1fr; justify-items: center; text-align: left; } .tree-info { width: 100%; } }
+
+.garden-hero { display: flex; gap: 16px; align-items: center; }
+.level-badge { flex: none; width: 72px; height: 72px; border-radius: 50%; display: grid; place-content: center; text-align: center;
+  background: radial-gradient(circle at 30% 30%, #6fcf8f, var(--accent)); color: #fff; }
+.level-badge .muted { color: rgb(255 255 255 / .8); line-height: 1; }
+.level-badge strong { font-size: 1.7rem; line-height: 1.1; }
+.level-info { flex: 1; display: grid; gap: 6px; }
+.level-info p { margin: 0; }
+.level-row { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.level-fill { background: linear-gradient(90deg, var(--accent), #8fd36b); }
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stat { display: flex; flex-direction: column; align-items: center; padding: 12px 6px; text-align: center; }
+.stat strong { font-size: 1.4rem; }
+@media (max-width: 420px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+.forest { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 8px; }
+.forest-day { text-align: center; }
+.plot { aspect-ratio: 1; border-radius: 8px; border: 0; padding: 2px; background: color-mix(in srgb, #8a6a4a 10%, var(--surface-2)); display: grid; place-items: center; cursor: pointer; font-size: .9rem; }
+.plot .tree { width: 100%; height: auto; }
+.plot.empty, .plot.future { cursor: default; }
+.plot.future { background: none; border: 1px dashed var(--border); }
+.plot.is-today { outline: 2px solid var(--accent); outline-offset: 1px; }
+.seed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; }
+.seed { border: 1px solid var(--border); background: var(--bg); border-radius: 12px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; font-size: .85rem; font-weight: 600; }
+.seed.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.seed:disabled { cursor: default; }
+.stage-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); font-size: .75rem; margin: 2px 0; }
+@media (max-width: 640px) { .nav button { font-size: .82rem; padding: 8px 2px; } }
