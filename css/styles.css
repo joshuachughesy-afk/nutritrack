@@ -182,3 +182,19 @@ details summary { cursor: pointer; font-weight: 600; font-size: .9rem; margin-bo
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; transition: .25s; pointer-events: none; z-index: 60;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Training recommendations */
+.emph-carbs { --c: var(--carbs); } .emph-protein { --c: var(--protein); } .emph-balanced { --c: var(--accent); }
+.training-badge { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
+.training-desc .chip { margin: 0 4px; }
+.table-wrap { overflow-x: auto; margin: 8px -4px; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+thead th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+tbody th { font-weight: 600; white-space: nowrap; }
+.compare-table tbody th { white-space: normal; min-width: 150px; }
+.compare-table tr.is-current { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.tips-title { font-size: .9rem; margin: 14px 0 6px; }
+.tips { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; font-size: .9rem; }
+.seg .muted { font-weight: 400; }
+td.num, .chip { white-space: nowrap; }

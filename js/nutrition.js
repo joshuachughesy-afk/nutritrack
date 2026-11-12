@@ -1,5 +1,6 @@
 // Nutrition science: target calculation, DRIs, and nutrient math.
 // Values from NIH ODS / IOM Dietary Reference Intakes (adults).
+import { TRAINING, LOADS } from './training.js';
 
 export const MACROS = [
   { key: 'protein', label: 'Protein', unit: 'g', kcalPerG: 4 },
@@ -67,20 +68,67 @@ export function bmr({ sex, age, heightCm, weightKg }) {
   return 10 * weightKg + 6.25 * heightCm - 5 * age + (sex === 'male' ? 5 : -161);
 }
 
+const lerp = ([a, b], t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+/*
+ * Macro allocation, in priority order:
+ *  1. Protein: from the training type's g/kg range (top of range when in a deficit, to protect muscle).
+ *  2. Carbs: the training type's g/kg target for your load. They get first claim on the remaining calories.
+ *  3. Fat: whatever is left, never below a health floor (max of 0.6 g/kg and 20% kcal), never above 35% kcal.
+ *     Surplus calories go to fat up to the top of its range, then back to carbs.
+ */
 export function computeTargets(p) {
   if (!p) return null;
   const o = p.overrides || {};
+  const w = p.weightKg;
   const base = bmr(p);
   const tdee = base * (ACTIVITY[p.activity]?.mult ?? 1.2);
   const floor = p.sex === 'male' ? 1500 : 1200;
   let kcal = Math.max(floor, Math.round((tdee + (GOALS[p.goal]?.delta ?? 0)) / 10) * 10);
   if (o.kcal) kcal = o.kcal;
-  const protein = o.protein || Math.round((p.proteinPerKg ?? 1.8) * p.weightKg);
-  const fat = o.fat || Math.round((kcal * (p.fatPct ?? 30)) / 100 / 9);
-  const carbs = o.carbs || Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
+
+  const trainingId = TRAINING[p.trainingType] ? p.trainingType : 'general';
+  const tr = TRAINING[trainingId];
+  const t = LOADS[p.trainingLoad]?.t ?? 0.35;
+  const cutting = String(p.goal).startsWith('lose');
+
+  const protein = o.protein || Math.round(lerp(tr.protein, cutting ? 1 : t) * w);
+  const carbGoal = lerp(tr.carbs, t) * w;
+  const fatFloor = Math.max(0.6 * w, (0.2 * kcal) / 9);
+  const fatCap = (0.35 * kcal) / 9;
+  const rest = kcal - protein * 4;
+
+  let carbs, fat;
+  if (o.carbs && o.fat) { carbs = o.carbs; fat = o.fat; }
+  else if (o.carbs) { carbs = o.carbs; fat = Math.max(0, (rest - carbs * 4) / 9); }
+  else if (o.fat) { fat = o.fat; carbs = Math.max(0, (rest - fat * 9) / 4); }
+  else {
+    carbs = Math.max(0, Math.min(carbGoal, (rest - fatFloor * 9) / 4));
+    fat = (rest - carbs * 4) / 9;
+    const fatMax = clamp(tr.fat[1] * w, fatFloor, fatCap);
+    if (fat > fatMax) { carbs += ((fat - fatMax) * 9) / 4; fat = fatMax; }
+  }
+  carbs = Math.round(carbs); fat = Math.round(Math.max(0, fat));
+
+  const notes = [];
+  const gkg = { protein: protein / w, carbs: carbs / w, fat: fat / w };
+  if (gkg.carbs < tr.carbs[0] - 0.05)
+    notes.push(`Carbs (${gkg.carbs.toFixed(1)} g/kg) are below the ${tr.carbs[0]}–${tr.carbs[1]} g/kg recommended for ${tr.name.toLowerCase()}. Your calorie target leaves too little room. A smaller deficit, or more carbs on training days, will help performance.`);
+  if (gkg.carbs > tr.carbs[1] + 0.05 && !o.carbs)
+    notes.push(`Your calorie target is above what ${tr.name.toLowerCase()} needs at this load, so the extra goes to carbs (${gkg.carbs.toFixed(1)} g/kg). If this feels like a lot, re-check your activity level.`);
+  if ((t >= 0.7 && ['sedentary', 'light'].includes(p.activity)) || (t === 0 && ['very', 'extra'].includes(p.activity)))
+    notes.push('Your activity level and training load don\'t match. Activity sets total calories; training load sets the macro split.');
+  if (protein * 4 + carbs * 4 + fat * 9 > kcal + 50)
+    notes.push('Your manual overrides add up to more calories than your daily target.');
+
   const micros = driTable(p.sex, p.age);
   micros.fiber = { target: Math.round((kcal / 1000) * 14) };
-  return { bmr: Math.round(base), tdee: Math.round(tdee), kcal, protein, carbs, fat, micros, floorApplied: !o.kcal && kcal === floor };
+  return {
+    bmr: Math.round(base), tdee: Math.round(tdee), kcal, protein, carbs, fat, micros,
+    floorApplied: !o.kcal && kcal === floor,
+    training: { id: trainingId, ...tr }, gkg, notes,
+  };
 }
 
 export function emptyNutrients() {

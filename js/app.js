@@ -1,5 +1,6 @@
 import { store, uid } from './store.js';
 import { FOODS } from './foods.js';
+import { TRAINING, LOADS } from './training.js';
 import {
   MACROS, MICROS, ACTIVITY, GOALS, computeTargets, scaleNutrients, sumNutrients, emptyNutrients,
   microStatus, fmt, kgToLb, lbToKg, cmToIn, inToCm,
@@ -56,7 +57,9 @@ function viewToday() {
   const remaining = t.kcal - tot.kcal;
   const yesterday = store.day(shiftDate(ui.date, -1));
 
-  const macroRows = MACROS.map(m => {
+  const carbFirst = t.training.emphasis.startsWith('Carb');
+  const macroOrder = carbFirst ? [MACROS[1], MACROS[0], MACROS[2]] : MACROS;
+  const macroRows = macroOrder.map(m => {
     const pct = tot[m.key] / t[m.key];
     const status = pct > 1.1 ? 'over' : pct >= 0.9 ? 'met' : pct >= 0.5 ? 'mid' : 'low';
     return `<div class="macro">
@@ -117,6 +120,8 @@ function viewToday() {
         <div><span class="muted small">Target</span><strong class="num">${fmt(t.kcal)}</strong></div>
       </div>
       <div class="macros">${macroRows}</div>
+      <button class="training-badge" data-nav="profile"><span class="chip ${emphasisClass(t.training.emphasis)}">${t.training.name} · ${t.training.emphasis}</span>
+        <span class="muted small">C ${t.gkg.carbs.toFixed(1)} · P ${t.gkg.protein.toFixed(1)} · F ${t.gkg.fat.toFixed(1)} g/kg</span></button>
     </section>
     ${meals}
     <section class="card">
@@ -164,7 +169,7 @@ function viewFoods() {
 
 function viewProfile() {
   const s = store.get();
-  const p = s.profile || { sex: 'male', age: 30, heightCm: 178, weightKg: 80, activity: 'moderate', goal: 'maintain', proteinPerKg: 1.8, fatPct: 30, overrides: {} };
+  const p = s.profile || { sex: 'male', age: 30, heightCm: 178, weightKg: 80, activity: 'moderate', goal: 'maintain', trainingType: 'general', trainingLoad: 'moderate', overrides: {} };
   const t = computeTargets(p);
   const imp = s.units === 'imperial';
   const totalIn = cmToIn(p.heightCm);
@@ -192,8 +197,12 @@ function viewProfile() {
       </div>
       <label class="span-2">Activity<select name="activity">${opt(ACTIVITY, p.activity)}</select></label>
       <label class="span-2">Goal<select name="goal">${opt(GOALS, p.goal)}</select></label>
-      <label>Protein (g per kg body weight)<input name="proteinPerKg" type="number" step="0.1" min="0.8" max="3" value="${p.proteinPerKg}"></label>
-      <label>Fat (% of calories)<input name="fatPct" type="number" min="15" max="50" value="${p.fatPct}"></label>
+      <label class="span-2">Training type<select name="trainingType">${Object.entries(TRAINING).map(([k, v]) =>
+        `<option value="${k}" ${k === (p.trainingType || 'general') ? 'selected' : ''}>${v.name}</option>`).join('')}</select></label>
+      <p class="span-2 muted small training-desc" id="training-desc"></p>
+      <fieldset class="span-2 seg"><legend>Training load</legend>
+        ${Object.entries(LOADS).map(([k, v]) => `<label><input type="radio" name="trainingLoad" value="${k}" ${k === (p.trainingLoad || 'moderate') ? 'checked' : ''}> ${v.label} <span class="muted small">${v.detail}</span></label>`).join('')}
+      </fieldset>
       <details class="span-2"><summary>Manual overrides (leave blank for automatic)</summary>
         <div class="form-grid">
           <label>Calories<input name="o_kcal" type="number" min="800" value="${o.kcal ?? ''}"></label>
@@ -211,13 +220,11 @@ function viewProfile() {
         <div><span class="muted small">BMR</span><strong class="num">${t.bmr.toLocaleString()}</strong></div>
         <div><span class="muted small">TDEE</span><strong class="num">${t.tdee.toLocaleString()}</strong></div>
         <div><span class="muted small">Daily target</span><strong class="num">${t.kcal.toLocaleString()} kcal</strong></div>
-        <div><span class="muted small">Protein</span><strong class="num">${t.protein} g</strong></div>
-        <div><span class="muted small">Carbs</span><strong class="num">${t.carbs} g</strong></div>
-        <div><span class="muted small">Fat</span><strong class="num">${t.fat} g</strong></div>
       </div>
       ${t.floorApplied ? '<p class="note">Your target was raised to the minimum safe floor. Use a manual override only with professional guidance.</p>' : ''}
-      <p class="muted small">BMR uses Mifflin-St Jeor. Micronutrient targets are the NIH Dietary Reference Intakes for your age and sex. This is not medical advice.</p>
+      ${t.notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}
     </section>
+    ${viewTrainingCard(t)}
     <section class="card">
       <h3>Your data</h3>
       <div class="row-actions">
@@ -228,7 +235,57 @@ function viewProfile() {
     </section>` : ''}`;
 }
 
+function emphasisClass(e) { return e.startsWith('Carb') ? 'emph-carbs' : e.startsWith('Protein') ? 'emph-protein' : 'emph-balanced'; }
+
+function viewTrainingCard(t) {
+  const tr = t.training;
+  const row = (key, label) => {
+    const g = t[key], gkg = t.gkg[key], [lo, hi] = tr[key];
+    const pctKcal = Math.round((g * (key === 'fat' ? 9 : 4) / t.kcal) * 100);
+    const inRange = gkg >= lo - 0.05 && gkg <= hi + 0.05;
+    return `<tr>
+      <th scope="row"><span class="dot dot-${key}"></span> ${label}</th>
+      <td class="num"><strong>${g} g</strong></td>
+      <td class="num">${gkg.toFixed(1)}</td>
+      <td class="num muted">${lo}–${hi}</td>
+      <td class="num muted">${pctKcal}%</td>
+      <td>${inRange ? '<span class="chip s-met">in range</span>' : `<span class="chip s-low">${gkg < lo ? 'below' : 'above'}</span>`}</td>
+    </tr>`;
+  };
+  const order = tr.emphasis.startsWith('Carb') ? [['carbs', 'Carbs'], ['protein', 'Protein'], ['fat', 'Fat']]
+    : [['protein', 'Protein'], ['carbs', 'Carbs'], ['fat', 'Fat']];
+  const compare = Object.values(TRAINING).map(x => `<tr class="${x.name === tr.name ? 'is-current' : ''}">
+    <th scope="row">${x.name}<div class="muted small">${x.examples}</div></th>
+    <td class="num">${x.carbs.join('–')}</td><td class="num">${x.protein.join('–')}</td><td class="num">${x.fat.join('–')}</td>
+    <td><span class="chip ${emphasisClass(x.emphasis)}">${x.emphasis}</span></td></tr>`).join('');
+  return `
+    <section class="card">
+      <header class="meal-head"><h3>Macro recommendations</h3><span class="chip ${emphasisClass(tr.emphasis)}">${tr.name} · ${tr.emphasis}</span></header>
+      <div class="table-wrap"><table class="macro-table">
+        <thead><tr><th></th><th>Target</th><th>g/kg</th><th>Recommended g/kg</th><th>% kcal</th><th></th></tr></thead>
+        <tbody>${order.map(([k, l]) => row(k, l)).join('')}</tbody>
+      </table></div>
+      <h4 class="tips-title">Fueling tips for ${tr.name.toLowerCase()}</h4>
+      <ul class="tips">${tr.tips.map(x => `<li>${x}</li>`).join('')}</ul>
+      <details><summary>Compare all training types (g/kg/day)</summary>
+        <div class="table-wrap"><table class="compare-table">
+          <thead><tr><th>Training type</th><th>Carbs</th><th>Protein</th><th>Fat</th><th>Emphasis</th></tr></thead>
+          <tbody>${compare}</tbody>
+        </table></div>
+      </details>
+      <p class="muted small">Ranges are based on the ACSM/AND/DC joint position on athletic nutrition (2016), ISSN position stands on protein (2017) and nutrient timing (2017), and Helms et al. (2014). Hybrid ranges combine the endurance carb guidance with resistance-training protein guidance. BMR uses Mifflin-St Jeor. Micronutrient targets are the NIH Dietary Reference Intakes. This is not medical advice.</p>
+    </section>`;
+}
+
+function syncTrainingDesc() {
+  const form = $('#profile-form'), el = $('#training-desc');
+  if (!form || !el) return;
+  const tr = TRAINING[form.trainingType.value];
+  el.innerHTML = `${esc(tr.examples)}. <span class="chip ${emphasisClass(tr.emphasis)}">${tr.emphasis}</span> Carbs ${tr.carbs.join('–')} · Protein ${tr.protein.join('–')} · Fat ${tr.fat.join('–')} g/kg`;
+}
+
 function syncProfileUnits() {
+  syncTrainingDesc();
   const form = $('#profile-form');
   if (!form) return;
   const imp = form.units.value === 'imperial';
@@ -393,6 +450,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'food-search') renderResults(e.target.value);
   if (e.target.id === 'qty' || e.target.id === 'unit') updatePreview();
   if (e.target.name === 'units') syncProfileUnits();
+  if (e.target.name === 'trainingType') syncTrainingDesc();
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'unit') updatePreview();
@@ -423,8 +481,8 @@ document.addEventListener('submit', e => {
       heightCm: imp ? inToCm(num('heightFt') * 12 + num('heightIn')) : num('heightCm'),
       activity: form.activity.value,
       goal: form.goal.value,
-      proteinPerKg: num('proteinPerKg') || 1.8,
-      fatPct: num('fatPct') || 30,
+      trainingType: form.trainingType.value,
+      trainingLoad: form.trainingLoad.value,
       overrides: { kcal: opt('o_kcal'), protein: opt('o_protein'), carbs: opt('o_carbs'), fat: opt('o_fat') },
     };
     if (profile.age < 18 || profile.weightKg < 30 || profile.heightCm < 120) { alert('Please check your age, weight and height.'); return; }

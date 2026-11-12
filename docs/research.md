@@ -85,6 +85,41 @@ Almost every tracker uses the same core loop:
 - This app is not medical advice. Anyone with a medical condition, pregnancy or medications should set targets
   with a clinician.
 
+## 6. Macro recommendations by training type
+
+Different training places different demands on fuel. NutriTrack stores these ranges in `js/training.js` (g per kg of
+body weight per day) and places you within each range based on your weekly training load.
+
+| Training type | Carbs | Protein | Fat | Emphasis |
+|---|---|---|---|---|
+| General fitness | 3–5 | 1.2–1.6 | 0.8–1.2 | Balanced |
+| Strength / powerlifting | 3–5 | 1.6–2.2 | 0.8–1.2 | Protein-forward |
+| Bodybuilding / hypertrophy | 4–6 | 1.8–2.4 | 0.7–1.0 | Protein-forward |
+| CrossFit / HIIT / functional | 4–7 | 1.6–2.0 | 0.8–1.0 | Carb-leaning |
+| **Hybrid (strength + endurance)** | **5–8** | 1.6–2.0 | 0.8–1.0 | **Carb-forward** |
+| Team / field sports | 5–7 | 1.4–1.8 | 0.8–1.0 | Carb-forward |
+| Combat sports | 4–6 | 1.6–2.2 | 0.8–1.0 | Balanced |
+| Endurance (1–3 h/day) | 6–10 | 1.4–1.8 | 0.8–1.0 | Carb-forward |
+| Ultra-endurance (4 h+/day) | 8–12 | 1.6–2.0 | 1.0–1.5 | Carb-forward |
+| Low intensity / mobility | 3–5 | 1.2–1.6 | 0.8–1.2 | Balanced |
+
+**How targets are allocated:**
+1. Protein comes from the type's range, and moves to the top of it when you are in a deficit.
+2. Carbs get first claim on the remaining calories, up to the type's target for your load.
+3. Fat takes the rest. It never drops below a health floor (the higher of 0.6 g/kg or 20% of calories) and never
+   goes above 35% of calories.
+4. If your calorie target can't fit the recommended carbs (common in a deficit), the app tells you rather than
+   quietly cutting performance fuel.
+
+**Why hybrid athletes need carbs first:** endurance volume drains muscle glycogen and lifting depends on it being
+refilled. Protein above about 2.0 g/kg adds no measurable benefit and takes calories away from carbs.
+
+**Sources:** Thomas, Erdman & Burke, *ACSM/AND/DC Joint Position: Nutrition and Athletic Performance* (2016);
+Jäger et al., *ISSN Position Stand: Protein and Exercise* (2017); Kerksick et al., *ISSN Position Stand: Nutrient
+Timing* (2017); Helms et al., *Evidence-based recommendations for natural bodybuilding contest preparation* (2014).
+Concurrent or hybrid training has no dedicated position stand, so its ranges combine the endurance carb bands with
+resistance-training protein guidance.
+
 ## Sources
 
 - [Fitia: Best food tracking app (US 2026 comparison)](https://fitia.app/en/learn/article/best-food-tracking-app-us-2026-comparison/)
