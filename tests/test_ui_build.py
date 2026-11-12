@@ -35,6 +35,7 @@ class FakeApp:
     def render(self): self.rendered += 1
     def go(self, view, date=None): self.view = view
     dark = False
+    visible = True
     def toast(self, msg): self.last_toast = msg
     def celebrate(self, msg, big=False): self.last_toast = msg
     def set_theme_mode(self, mode): self.theme_mode = mode
@@ -77,7 +78,7 @@ def test_onboarding_builds_without_profile(tmp_path):
 
 
 def test_progress_trends_tab_builds(app):
-    from datetime import date, timedelta
+    from datetime import timedelta
     t = date.today()
     for i in range(20):
         app.svc.log_weight((t - timedelta(days=i)).isoformat(), 84 - i * 0.05)

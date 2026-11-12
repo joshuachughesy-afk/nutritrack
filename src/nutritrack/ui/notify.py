@@ -12,7 +12,6 @@ import hashlib
 from datetime import date
 from typing import TYPE_CHECKING
 
-import flet as ft
 
 try:  # optional at import time so tests and plain web runs work without it
     import flet_notifications as ftn
@@ -83,9 +82,19 @@ class Notifier:
 
     # ---------- in-app loop ----------
     async def loop(self) -> None:
+        """Once a minute: show due reminders, and refresh Today only when its pace check would actually change.
+
+        Skipped entirely while the app is in the background (the OS scheduler covers reminders there), so an idle
+        client costs the server nothing.
+        """
+        last_sig = None
         while True:
+            await asyncio.sleep(60)
+            if not self.app.visible:
+                continue
             try:
-                for ev in self.app.svc.due_now():
+                events = self.app.svc.due_now()
+                for ev in events:
                     if not self.can_schedule and self.service is not None:
                         try:
                             await self.service.show(abs(hash(ev.key)) % 2**31, title=ev.title, body=ev.body, payload=ev.payload)
@@ -93,10 +102,12 @@ class Notifier:
                             pass
                     self.app.banner(ev.title, ev.body, ev.payload)
                 if self.app.view == "today":
-                    self.app.render()  # keep the pace check current
+                    sig = self.app.svc.pace_signature(self.app.date)
+                    if events or sig != last_sig:
+                        last_sig = sig
+                        self.app.render()
             except Exception:
                 pass
-            await asyncio.sleep(60)
 
     async def test(self) -> None:
         shown = False

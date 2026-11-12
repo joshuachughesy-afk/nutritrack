@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from .core.foods import FOODS, Food
-from .core.garden import (STAGES, SPECIES, DayScore, History, level_info, score_day, stage_for, summarize_history)
+from .core.garden import (STAGES, SPECIES, DayScore, History, level_info, score_day, summarize_history)
 from .core.nutrition import (DEFAULT_TRAINING_DAYS, Nutrients, Targets, day_targets, fmt_water, sum_nutrients,
                              weekday_sun0)
 from .core.pacing import micro_gaps
@@ -51,6 +51,18 @@ class DayTotals:
 class Service:
     def __init__(self, store: Store):
         self.store = store
+        self._memo_v = -1
+        self._memo: dict = {}
+
+    def _cached(self, name: str, key, fn):
+        """Memoise derived values until the next database write (store.version), so one render never repeats work."""
+        if self._memo_v != self.store.version:
+            self._memo.clear()
+            self._memo_v = self.store.version
+        k = (name, key)
+        if k not in self._memo:
+            self._memo[k] = fn()
+        return self._memo[k]
 
     # ---------- units ----------
     @property
@@ -77,6 +89,9 @@ class Service:
         return weekday_sun0(date.fromisoformat(key)) in days
 
     def targets_for(self, key: str) -> Targets:
+        return self._cached("targets", key, lambda: self._targets_for(key))
+
+    def _targets_for(self, key: str) -> Targets:
         p = self.store.profile()
         if p.use_adaptive:
             a = self.adaptive()
@@ -87,7 +102,6 @@ class Service:
     # ---------- weight & adaptive TDEE ----------
     def log_weight(self, key: str, kg: float | None) -> None:
         self.store.set_day(key, weight_kg=kg)
-        self._adaptive_cache = None
         p = self.store.profile()
         if p and p.auto_weight:
             series = weight_trend(self.store.weights())
@@ -96,19 +110,15 @@ class Service:
                 self.store.save_profile(p)
 
     def adaptive(self) -> AdaptiveTDEE:
-        cache = getattr(self, "_adaptive_cache", None)
-        stamp = (today_key(), len(self.store.weights()), round(sum(self.store.intake_by_date().values())))
-        if cache and cache[0] == stamp:
-            return cache[1]
-        p = self.store.profile()
-        p.adaptive_tdee = None
-        formula = compute_targets(p).tdee
-        res = adaptive_tdee(self.store.intake_by_date(), self.store.weights(), formula, today_key())
-        self._adaptive_cache = (stamp, res)
-        return res
+        def compute() -> AdaptiveTDEE:
+            p = self.store.profile()
+            p.adaptive_tdee = None
+            return adaptive_tdee(self.store.intake_by_date(), self.store.weights(), compute_targets(p).tdee, today_key())
+        return self._cached("adaptive", today_key(), compute)
 
     def period(self, days: int) -> PeriodSummary:
         end = date.fromisoformat(today_key())
+        self.store.prefetch((end - timedelta(days=days - 1)).isoformat(), end.isoformat())
         rows: list[DayRow] = []
         for i in range(days - 1, -1, -1):
             k = (end - timedelta(days=i)).isoformat()
@@ -166,12 +176,18 @@ class Service:
         self.store.save_custom_food(f)
 
     def totals(self, key: str) -> DayTotals:
+        return self._cached("totals", key, lambda: self._totals(key))
+
+    def _totals(self, key: str) -> DayTotals:
         food = sum_nutrients(e["n"] for e in self.store.entries(key))
         supps = sum_nutrients(d["n"] for d in self.store.doses(key))
         return DayTotals(food, supps, sum_nutrients([food, supps]), self.store.water_total(key))
 
+    def active_supplements(self):
+        return self._cached("supps", None, lambda: [s for s in self.store.supplements() if s.active])
+
     def dose_counts(self, key: str) -> tuple[int, int]:
-        active = [s for s in self.store.supplements() if s.active]
+        active = self.active_supplements()
         ids = {s.id for s in active}
         scheduled = sum(len(s.times) for s in active)
         taken = sum(1 for d in self.store.doses(key) if d["supp_id"] in ids)
@@ -189,6 +205,9 @@ class Service:
         return bool(self.store.entries(key))
 
     def live_score(self, key: str) -> tuple[DayScore, Targets, DayTotals]:
+        return self._cached("score", key, lambda: self._live_score(key))
+
+    def _live_score(self, key: str) -> tuple[DayScore, Targets, DayTotals]:
         t = self.targets_for(key)
         tot = self.totals(key)
         scheduled, taken = self.dose_counts(key)
@@ -211,6 +230,9 @@ class Service:
                 self.store.set_day(key, garden={"score": self.live_score(key)[0].score, "species": self.species_for(key)})
 
     def history(self) -> tuple[list[tuple[str, int | None]], History]:
+        return self._cached("history", today_key(), self._history)
+
+    def _history(self) -> tuple[list[tuple[str, int | None]], History]:
         today = today_key()
         logged = self.store.logged_dates()
         start = logged[0] if logged and logged[0] < today else today
@@ -274,6 +296,20 @@ class Service:
         taken = {(d["supp_id"], d["time"]) for d in self.store.doses(key)}
         return plan_notifications(now, self.store.reminders(), self.store.schedule(), self.store.supplements(), taken, t,
                                   tot.total, tot.water_ml, self.all_foods(), self.water_fmt)
+
+    def pace_signature(self, key: str) -> tuple:
+        """What the Today pace card shows, coarsely: statuses, 5-minute clock bucket and gap-list visibility.
+        The pace card's numbers drift slowly, so refreshing on this signature keeps it current without re-rendering
+        the whole screen every minute."""
+        from .core.pacing import compute_pace, to_min
+        now = datetime.now()
+        minute = now.hour * 60 + now.minute
+        if key != today_key():
+            return (key,)
+        sched = self.store.schedule()
+        t, tot = self.targets_for(key), self.totals(key)
+        statuses = tuple(r.status for r in compute_pace(t, tot.total, tot.water_ml, sched, minute))
+        return (key, statuses, minute // 15, minute >= to_min(sched["dinner"]) - 60)
 
     def gaps(self, key: str, limit: int = 3):
         return micro_gaps(self.targets_for(key), self.totals(key).total, self.all_foods(), limit)

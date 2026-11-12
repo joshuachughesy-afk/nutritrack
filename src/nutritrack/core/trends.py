@@ -41,17 +41,6 @@ def slope_kg_per_day(weights: list[tuple[str, float]]) -> float:
     return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx if sxx else 0.0
 
 
-def trend_on(series: list[tuple[str, float, float]], day: str) -> float | None:
-    """Trend value as of `day` (carried forward from the last weigh-in on or before it)."""
-    val = None
-    for d, _, t in series:
-        if d <= day:
-            val = t
-        else:
-            break
-    return val
-
-
 @dataclass
 class AdaptiveTDEE:
     ready: bool

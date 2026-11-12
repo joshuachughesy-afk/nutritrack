@@ -47,6 +47,25 @@ can analyse directly with pandas or any SQLite tool.
   theme (System / Light / Dark in Profile → Appearance), softly shadowed cards, a sky-gradient tree card and shimmer
   placeholders while online searches load.
 
+## Performance
+
+* **Reads are cached until the next write.** `Store` caches query results and bumps a version on every write; `Service`
+  memoises targets, totals, scores, history and the adaptive TDEE under that version. Multi-day screens prefetch their
+  date range in four queries.
+* **Images are cheap to send.** Renders are palette-compressed (about 4–5× smaller). Small trees at the default angle
+  (calendar, seed picker) load from `assets/trees/<season>/` by path, so the client caches them and re-renders send
+  nothing. Only the turnable hero tree and the forest are sent as bytes.
+* **Idle clients cost nothing.** The reminder loop pauses while the app is in the background and refreshes Today only
+  when its pace check would change.
+
+Measured on 5 weeks of sample data, for the render that follows a write:
+
+| Screen | Before | After |
+|---|---|---|
+| Today | 80 queries · 14 KB images | 15 queries · 4 KB |
+| Trends (90 days) | 1,037 queries (1,219 with adaptive) | 5 queries |
+| Garden | 136 queries · 460 KB images | 6 queries · 26 KB |
+
 ## Editing what you logged
 
 Tap any food on Today to change its amount, unit or meal (or delete it). The editor starts from what you logged, and
@@ -67,9 +86,9 @@ to typing the barcode number.
 pytest -q
 ```
 
-* `tests/test_parity.py`: about 950 cases checking that the Python port gives **identical** results to the original
-  JavaScript app (targets for 2,016 profile/day/creatine combinations, scoring, pacing, streaks and supplement checks).
-  The reference values come from `tests/js_reference.mjs`, run against `legacy-web/`.
+* `tests/test_parity.py`: golden values captured from the original JavaScript app (`tests/golden.json`): targets for
+  every training type, goal, sex and age band on training and rest days, plus scoring, pacing, streaks and supplement
+  checks. The JavaScript app itself was removed once the port matched; it is in git history.
 * `tests/test_store_service.py`: database, carb cycling, creatine water, garden freezing, reminders and backups.
 * `tests/test_stage_c.py`: Open Food Facts and USDA parsing (real and API-format fixtures), barcode decoding, weight
   trend, adaptive TDEE recovering a known burn rate even with ±1 kg water noise, and the service functions.
@@ -83,8 +102,6 @@ pytest -q
 | **B. Water, supplements, pace, reminders, garden** | Water card (35 ml/kg + training + creatine, with breakdown); supplement checklist on Today with "due" flags; Supplements screen (stack, pause/edit/remove, timing tips, upper-limit and iron/calcium conflict checks, daily totals, 15 templates, editor with creatine field); pace check with "expected by now" markers and evening micronutrient gaps; **OS-scheduled notifications** through `flet-notifications` on Android/iOS/macOS/Windows (daily supplement reminders with a **Mark taken** action, live check-ins, water nudges; re-synced on every change), with an in-app reminder loop on web and Linux; reminder settings and test; tree card with growth tips and streak; Garden screen (level, stats, 8-week forest, seed picker, scoring rules); backup export and import | ✅ Done |
 | **C. Extended data** | Online food search: **Open Food Facts** (branded foods, no key; picking a result fetches the full product) and **USDA FoodData Central** (lab-measured whole foods; add your free key in Profile → Food databases); online picks are saved for offline use and recents. **Barcode scanning**: camera capture or a photo decoded with zxing-cpp, or type the number. **Progress → Trends**: 7/30/90-day ranges, weight log with scale-vs-trend chart, calories-vs-target chart, macro/water/supplement averages, micronutrient coverage with consistently-low flags. **Adaptive TDEE**: intake minus the least-squares weight slope × 7,700 kcal/kg, blended with the formula by confidence and capped at ±25%; optional switch; profile weight follows your trend | ✅ Done |
 
-The Python app now does everything the original HTML/JavaScript version did. That version is kept in
-[`legacy-web/`](legacy-web/) only because the parity tests generate their reference values from it.
 
 ## Structure
 
@@ -97,7 +114,6 @@ src/nutritrack/core/             Pure logic, no UI. Everything here is unit-test
   supplements.py                 Templates, timing advice, creatine, stack analysis
   pacing.py                      Time-of-day pace engine, micronutrient gap suggestions
   garden.py                      Day scoring, streaks/shields, levels, species
-  trees.py                       Tree SVG drawings
   reminders.py                   Reminder rules + OS notification plan
   online.py                      Open Food Facts + USDA clients and parsers
   barcode.py                     Barcode decoding from photos (zxing-cpp)
@@ -111,7 +127,6 @@ src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, 
   notify.py                      Reminders
 src/assets/                      Fonts (Plus Jakarta Sans) and pre-rendered trees
 tests/                           pytest suite
-legacy-web/                      Original HTML/JS app (reference)
 ```
 
 *Not medical advice. Set targets with a clinician if you're pregnant, have a medical condition, or take medications.*

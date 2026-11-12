@@ -10,6 +10,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from datetime import date, timedelta
 from pathlib import Path
 
 from .core.foods import Food
@@ -54,19 +55,52 @@ class Store:
         self.conn = sqlite3.connect(self.path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.lock = threading.RLock()
+        self.version = 0                      # bumps on every write; services key their caches on it
+        self._cache: dict[tuple, list] = {}   # read results, valid until the next write
+        self._prefetched: dict[tuple[str, str], list] = {}
         with self.lock:
             self.conn.executescript(SCHEMA)
             self.conn.commit()
 
     # ---------- helpers ----------
     def _q(self, sql: str, args: tuple = ()) -> list[sqlite3.Row]:
+        key = (sql, args)
         with self.lock:
-            return self.conn.execute(sql, args).fetchall()
+            rows = self._cache.get(key)
+            if rows is None:
+                rows = self.conn.execute(sql, args).fetchall()
+                if len(self._cache) > 5000:
+                    self._cache.clear()
+                self._cache[key] = rows
+            return rows
+
+    def _invalidate(self) -> None:
+        self.version += 1
+        self._cache.clear()
+        self._prefetched.clear()
 
     def _x(self, sql: str, args: tuple = ()) -> None:
         with self.lock:
             self.conn.execute(sql, args)
             self.conn.commit()
+            self._invalidate()
+
+    def prefetch(self, start: str, end: str) -> None:
+        """Load entries, doses, water and day rows for a date range in four queries (for multi-day views)."""
+        with self.lock:
+            for table, order in (("entries", "created"), ("doses", "time"), ("water", "at"), ("days", "date")):
+                by_day: dict[str, list] = {}
+                for r in self.conn.execute(f"select * from {table} where date between ? and ? order by date, {order}",
+                                           (start, end)).fetchall():
+                    by_day.setdefault(r["date"], []).append(r)
+                d = date.fromisoformat(start)
+                while d.isoformat() <= end:
+                    self._prefetched[(table, d.isoformat())] = by_day.get(d.isoformat(), [])
+                    d += timedelta(days=1)
+
+    def _day_rows(self, table: str, day: str, sql: str) -> list[sqlite3.Row]:
+        rows = self._prefetched.get((table, day))
+        return rows if rows is not None else self._q(sql, (day,))
 
     # ---------- settings ----------
     def get(self, key: str, default=None):
@@ -113,7 +147,7 @@ class Store:
 
     # ---------- food log ----------
     def entries(self, date: str) -> list[dict]:
-        rows = self._q("select * from entries where date=? order by created", (date,))
+        rows = self._day_rows("entries", date, "select * from entries where date=? order by created")
         return [{**dict(r), "n": json.loads(r["n"])} for r in rows]
 
     def add_entry(self, date: str, meal: str, name: str, n: dict, food_id: str | None = None, grams: float = 0,
@@ -148,10 +182,10 @@ class Store:
 
     # ---------- water ----------
     def water_total(self, date: str) -> float:
-        return float(self._q("select coalesce(sum(ml), 0) s from water where date=?", (date,))[0]["s"])
+        return float(sum(r["ml"] for r in self._day_rows("water", date, "select * from water where date=? order by at")))
 
     def water_count(self, date: str) -> int:
-        return int(self._q("select count(*) c from water where date=?", (date,))[0]["c"])
+        return len(self._day_rows("water", date, "select * from water where date=? order by at"))
 
     def add_water(self, date: str, ml: float) -> None:
         self._x("insert into water(id, date, ml, at) values(?,?,?,?)", (new_id("w-"), date, ml, time.time()))
@@ -172,7 +206,7 @@ class Store:
         self._x("delete from supplements where id=?", (supp_id,))
 
     def doses(self, date: str) -> list[dict]:
-        return [{**dict(r), "n": json.loads(r["n"])} for r in self._q("select * from doses where date=? order by time", (date,))]
+        return [{**dict(r), "n": json.loads(r["n"])} for r in self._day_rows("doses", date, "select * from doses where date=? order by time")]
 
     def toggle_dose(self, date: str, s: Supplement, time_str: str) -> bool:
         """Toggle a scheduled dose; nutrients are snapshotted so editing the supplement later doesn't rewrite history.
@@ -189,7 +223,7 @@ class Store:
 
     # ---------- per-day metadata ----------
     def day(self, date: str) -> dict:
-        rows = self._q("select * from days where date=?", (date,))
+        rows = self._day_rows("days", date, "select * from days where date=?")
         if not rows:
             return {"date": date, "day_type": None, "species": None, "peak_stage": 0, "garden": None, "notified": [],
                     "weight_kg": None}
@@ -240,9 +274,11 @@ class Store:
                     cols = ", ".join(row)
                     self.conn.execute(f"insert into {table}({cols}) values({', '.join('?' * len(row))})", tuple(row.values()))
             self.conn.commit()
+            self._invalidate()
 
     def reset(self) -> None:
         with self.lock:
             for table in ("settings", "custom_foods", "entries", "water", "supplements", "doses", "days"):
                 self.conn.execute(f"delete from {table}")
             self.conn.commit()
+            self._invalidate()

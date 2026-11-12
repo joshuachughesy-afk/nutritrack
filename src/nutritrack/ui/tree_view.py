@@ -15,11 +15,20 @@ from . import motion
 STEP = 15  # degrees between turntable frames
 
 
+ASSET_SIZE = 128  # pre-rendered seasonal trees in assets/trees/<season>/ at the default 30° angle
+
+
 def tree_src(species: str, stage: int, size: int = 160, angle: int = 30, season: str = "summer"):
-    """Image source for a tree: rendered bytes when possible, else the bundled (summer) asset."""
-    if render3d.available():
-        return render3d.tree_png(species, stage, angle % 360, size, season)
-    return f"trees/{species}_{stage}.png"
+    """Image source for a tree.
+
+    Small trees at the default angle (calendar, seed picker) use the bundled asset path: the client downloads each file
+    once and caches it, so re-rendering a screen sends nothing. Larger or rotated trees are rendered to bytes; without
+    Pillow the asset is used as a fallback.
+    """
+    asset = f"trees/{season}/{species}_{stage}.png"
+    if (size <= ASSET_SIZE and angle % 360 == 30) or not render3d.available():
+        return asset
+    return render3d.tree_png(species, stage, angle % 360, size, season)
 
 
 class TreeView:

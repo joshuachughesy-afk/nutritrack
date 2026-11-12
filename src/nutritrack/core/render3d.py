@@ -336,6 +336,8 @@ def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevatio
     for _, pts, rgb in tris:
         draw.polygon(pts, fill=(*rgb, 255), outline=(*rgb, 255))
     img = img.resize((w_px, h_px), Image.LANCZOS)
+    # Flat-shaded low-poly art has few colours: a 128-colour palette is visually identical and 4-5x smaller to send.
+    img = img.quantize(colors=128, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=True)
     return buf.getvalue()

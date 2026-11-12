@@ -7,7 +7,7 @@ Each row lists nutrients in NUTRIENT_ORDER:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 NUTRIENT_ORDER = ('kcal', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'sodium', 'potassium', 'calcium', 'iron', 'magnesium', 'zinc', 'vitA', 'vitC', 'vitD', 'vitE', 'vitK', 'b12', 'folate')
 
@@ -135,4 +135,3 @@ FOODS: list[Food] = [
        (598, 7.8, 45.9, 42.6, 10.9, 24, 20, 715, 73, 11.9, 228, 3.3, 2, 0, 0, 0.6, 7.3, 0.3, 0)),
 ]
 
-FOOD_CATEGORIES = list(dict.fromkeys(f.category for f in FOODS))

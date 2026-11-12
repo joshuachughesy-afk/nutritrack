@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from nutritrack.core import barcode, online
-from nutritrack.core.nutrition import Profile, compute_targets
+from nutritrack.core.nutrition import Profile
 from nutritrack.core.trends import KCAL_PER_KG, adaptive_tdee, weight_trend
 from nutritrack.service import Service, today_key
 from nutritrack.store import Store
@@ -207,10 +207,12 @@ def test_render3d_all_species_and_turntable():
 
 def test_bundled_tree_assets_exist():
     from nutritrack.core.garden import SPECIES
+    from nutritrack.core.render3d import SEASONS
     root = Path(__file__).parent.parent / "src" / "assets" / "trees"
-    for sp in SPECIES:
-        for stage in range(6):
-            assert (root / f"{sp}_{stage}.png").stat().st_size > 1000
+    for season in SEASONS:
+        for sp in SPECIES:
+            for stage in range(6):
+                assert (root / season / f"{sp}_{stage}.png").stat().st_size > 500
 
 
 # ---------- seasons, forest, editing ----------

@@ -1,4 +1,4 @@
-"""The Python port must produce the same numbers as the original JavaScript app (tests/js_reference.json)."""
+"""Golden tests: the Python app must keep producing the values captured from the original JavaScript app."""
 import json
 from pathlib import Path
 
@@ -9,7 +9,7 @@ from nutritrack.core.nutrition import MICROS, Profile, day_targets, empty_nutrie
 from nutritrack.core.pacing import compute_pace
 from nutritrack.core.supplements import SUPP_TEMPLATES, analyze_stack
 
-REF = json.loads((Path(__file__).parent / "js_reference.json").read_text())
+REF = json.loads((Path(__file__).parent / "golden.json").read_text())
 SCHED = {"wake": "07:00", "sleep": "23:00", "breakfast": "08:00", "lunch": "12:30", "dinner": "18:30"}
 
 
@@ -26,7 +26,14 @@ def test_targets_match_js(case):
     assert (t.kcal, t.protein, t.carbs, t.fat, t.water_ml, t.bmr, t.tdee, t.cycling, len(t.notes)) == \
            (o["kcal"], o["protein"], o["carbs"], o["fat"], o["water"], o["bmr"], o["tdee"], o["cycling"], o["notes"])
     assert t.micros["fiber"].target == o["fiber"]
-    for k, (target, ul) in o["micros"].items():
+
+
+@pytest.mark.parametrize("case", REF["micros"], ids=lambda c: f"{c['sex']}-{c['age']}")
+def test_micronutrient_targets_match_js(case):
+    t = day_targets(Profile(sex=case["sex"], age=case["age"]), True)
+    for k, (target, ul) in case["micros"].items():
+        if k == "fiber":  # scales with calories, checked per profile in test_targets_match_js
+            continue
         assert t.micros[k].target == target and t.micros[k].ul == ul, k
 
 

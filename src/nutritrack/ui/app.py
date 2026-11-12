@@ -36,6 +36,8 @@ class App:
         page.bgcolor = ft.Colors.SURFACE
         page.padding = 0
         page.on_platform_brightness_change = lambda _: self.render()
+        self.visible = True
+        page.on_app_lifecycle_state_change = self._on_lifecycle
         page.navigation_bar = ft.NavigationBar(
             destinations=[ft.NavigationBarDestination(icon=i, selected_icon=si, label=l) for _, l, i, si in NAV],
             on_change=self._on_nav, animation_duration=400,
@@ -49,6 +51,17 @@ class App:
         self.svc.finalize_garden()
         self.render()
         page.run_task(self.notifier.loop)
+
+    def _on_lifecycle(self, e) -> None:
+        """Pause background work when the app isn't on screen; refresh when it comes back."""
+        state = getattr(e, "state", None)
+        was = self.visible
+        self.visible = state not in (ft.AppLifecycleState.HIDE, ft.AppLifecycleState.PAUSE,
+                                     ft.AppLifecycleState.INACTIVE, ft.AppLifecycleState.DETACH)
+        if self.visible and not was:
+            if self.date < today_key() and self.view == "today":
+                self.date = today_key()  # came back on a new day
+            self.render()
 
     # ---------- theme ----------
     @property

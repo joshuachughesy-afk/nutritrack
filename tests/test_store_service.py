@@ -116,3 +116,49 @@ def test_export_import_roundtrip(svc, tmp_path):
     blob = svc.store.export_json()
     other = Store(tmp_path / "o.db"); other.import_json(blob)
     assert other.entries(k)[0]["name"] == "Banana" and other.water_total(k) == 300 and other.profile().weight_kg == 84
+
+
+# ---------- caching must never serve stale data ----------
+def test_read_cache_invalidates_on_every_write(svc):
+    k = today_key()
+    assert svc.store.water_total(k) == 0
+    svc.store.add_water(k, 500)
+    assert svc.store.water_total(k) == 500            # same query, fresh after the write
+    v = svc.store.version
+    svc.store.entries(k); svc.store.entries(k)
+    assert svc.store.version == v                      # reads don't bump the version
+    svc.store.reset()
+    assert svc.store.water_total(k) == 0 and svc.store.profile() is None
+
+
+def test_memoised_targets_follow_profile_changes(svc):
+    k = today_key()
+    before = svc.targets_for(k).kcal
+    p = svc.store.profile(); p.weight_kg = 100; svc.store.save_profile(p)
+    assert svc.targets_for(k).kcal > before
+
+
+def test_prefetched_period_matches_unprefetched(svc):
+    t = date.today()
+    for i in range(10):
+        k = (t - timedelta(days=i)).isoformat()
+        if i % 3:
+            log(svc, k, "oats", 80 + i)
+            svc.store.add_water(k, 300 * i)
+    fresh = Service(Store(svc.store.path))             # separate store, no caches
+    expected = [(r.date, r.kcal, r.water_ml, r.logged) for r in [
+        type("R", (), {"date": d, "kcal": fresh.totals(d).total["kcal"], "water_ml": fresh.totals(d).water_ml,
+                       "logged": fresh.has_log(d)})() for d in [(t - timedelta(days=i)).isoformat() for i in range(13, -1, -1)]]]
+    got = [(r.date, r.kcal, r.water_ml, r.logged) for r in svc.period(14).days]
+    assert got == expected
+    log(svc, t.isoformat(), "banana", 118)             # a write after prefetch must be visible
+    assert svc.period(14).days[-1].kcal == pytest.approx(expected[-1][1] + 89 * 1.18)
+
+
+def test_import_invalidates_cache(svc, tmp_path):
+    k = today_key()
+    blob = svc.store.export_json()
+    svc.store.add_water(k, 999)
+    assert svc.store.water_total(k) == 999
+    svc.store.import_json(blob)
+    assert svc.store.water_total(k) == 0

@@ -34,6 +34,8 @@ def build(app: "App") -> list[ft.Control]:
 
 def _garden(app: "App") -> list[ft.Control]:
     svc = app.svc
+    t0 = date.fromisoformat(today_key())
+    app.store.prefetch((t0 - timedelta(days=t0.weekday() + 7 * 7)).isoformat(), t0.isoformat())  # calendar + forest
     svc.finalize_garden()
     days, h = svc.history()
     lv = level_info(h.points)
