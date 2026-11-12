@@ -82,6 +82,10 @@ Almost every tracker uses the same core loop:
 - **Absorption timing for supplements** (Stage 2): iron away from calcium; fat-soluble vitamins (A, D, E, K)
   with a meal; magnesium in the evening.
 - **Hydration:** baseline of about 35 ml per kg of body weight, adjustable.
+- **Creatine and hydration:** creatine pulls water into muscle cells (about 1–2 kg of extra intracellular water once
+  saturated). The ISSN creatine position stand (Kreider et al., 2017) found no evidence that it causes dehydration or
+  cramping, but the extra water has to come from somewhere. NutriTrack adds about **+500 ml/day** on a maintenance dose
+  (3–5 g) and about **+1 L/day** during a loading phase (15 g/day or more), whenever creatine is in your active stack.
 - This app is not medical advice. Anyone with a medical condition, pregnancy or medications should set targets
   with a clinician.
 

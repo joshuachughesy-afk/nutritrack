@@ -1,7 +1,7 @@
 import { store, uid } from './store.js';
 import { FOODS } from './foods.js';
 import { TRAINING, LOADS } from './training.js';
-import { SUPP_TEMPLATES, timingAdvice, analyzeStack } from './supplements.js';
+import { SUPP_TEMPLATES, timingAdvice, analyzeStack, dailyCreatine, creatinePerDose } from './supplements.js';
 import {
   MACROS, MICROS, ACTIVITY, GOALS, computeTargets, scaleNutrients, sumNutrients, emptyNutrients,
   microStatus, fmt, kgToLb, lbToKg, cmToIn, inToCm, dayTargets, DEFAULT_TRAINING_DAYS, ML_PER_OZ,
@@ -28,7 +28,8 @@ const isTrainingDay = key => {
   const s = store.get(), dt = store.dayData(key).dayType;
   return dt ? dt === 'training' : (s.profile?.trainingDays ?? DEFAULT_TRAINING_DAYS).includes(weekday(key));
 };
-const targetsFor = key => dayTargets(store.get().profile, isTrainingDay(key));
+const extrasNow = () => ({ creatineG: dailyCreatine(store.get().supplements) });
+const targetsFor = key => dayTargets(store.get().profile, isTrainingDay(key), extrasNow());
 const imperial = () => store.get().units === 'imperial';
 const fmtWater = ml => imperial() ? `${Math.round(ml / ML_PER_OZ)} oz` : ml >= 1000 ? `${(ml / 1000).toFixed(2).replace(/0$/, '')} L` : `${ml} ml`;
 const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -168,7 +169,12 @@ function viewWater(t, day) {
       ${amounts.map(([label, ml]) => `<button class="btn btn-ghost" data-action="water" data-ml="${ml}">+${label}${imperial() ? ' oz' : ' ml'}</button>`).join('')}
       ${(day.water ?? []).length ? '<button class="link" data-action="undo-water">Undo</button>' : ''}
     </div>
-    <p class="muted small">${t.dayType === 'training' ? 'Includes extra water for training. Drink about 400–800 ml (14–27 oz) per hour of exercise.' : 'Baseline: about 35 ml per kg of body weight.'}</p>
+    <ul class="water-parts small">
+      <li><span>Baseline <span class="muted">(35 ml/kg)</span></span><span class="num">${fmtWater(t.water.base)}</span></li>
+      ${t.water.training ? `<li><span>Training day</span><span class="num">+${fmtWater(t.water.training)}</span></li>` : ''}
+      ${t.water.creatine ? `<li><span>Creatine <span class="muted">(${fmt(t.water.creatineG)} g/day${t.water.creatineG >= 15 ? ', loading' : ''})</span></span><span class="num">+${fmtWater(t.water.creatine)}</span></li>` : ''}
+    </ul>
+    ${t.dayType === 'training' ? '<p class="muted small">During exercise, drink about 400–800 ml (14–27 oz) per hour, more in heat.</p>' : ''}
   </section>`;
 }
 
@@ -206,6 +212,8 @@ function suppForm(sp) {
       <p class="muted small">Leave extra times blank. Each time is one dose.</p>
     </fieldset>
     <label class="span-2 check"><input type="checkbox" name="withFood" ${sp?.withFood ? 'checked' : ''}> Take with food</label>
+    <label>Creatine per dose (g)<input name="creatineG" type="number" step="any" min="0" value="${sp && creatinePerDose(sp) ? creatinePerDose(sp) : ''}" placeholder="0"></label>
+    <p class="muted small creatine-hint">If this contains creatine, your water goal goes up about 500 ml/day (about 1 L/day while loading at 15 g+/day).</p>
     <details class="span-2" ${sp ? 'open' : ''}><summary>Nutrients per dose (from the label)</summary>
       <div class="form-grid">${MICROS.filter(m => m.key !== 'fiber').map(m =>
         `<label>${m.label} <span class="muted">(${m.unit})</span><input type="number" step="any" min="0" name="${m.key}" value="${v(m.key)}"></label>`).join('')}</div>
@@ -364,7 +372,7 @@ function viewProfile() {
       ${t.floorApplied ? '<p class="note">Your target was raised to the minimum safe floor. Use a manual override only with professional guidance.</p>' : ''}
       ${t.notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}
       ${(() => {
-        const tt = dayTargets(p, true), rt = dayTargets(p, false);
+        const tt = dayTargets(p, true, extrasNow()), rt = dayTargets(p, false, extrasNow());
         if (!tt.cycling) return '';
         return `<div class="table-wrap"><table><thead><tr><th>Carb cycling</th><th>Calories</th><th>Carbs</th><th>Protein</th><th>Fat</th><th>Water</th></tr></thead><tbody>
           <tr><th scope="row">🏋️ Training day</th><td class="num">${tt.kcal.toLocaleString()}</td><td class="num">${tt.carbs} g <span class="muted">(${tt.gkg.carbs.toFixed(1)}/kg)</span></td><td class="num">${tt.protein} g</td><td class="num">${tt.fat} g</td><td class="num">${fmtWater(tt.waterMl)}</td></tr>
@@ -688,7 +696,7 @@ document.addEventListener('submit', e => {
     store.saveSupplement({
       ...(existing ?? {}), id: existing?.id ?? 's-' + uid(), tid: existing?.tid ?? ui.suppDraft?.tid,
       name: form.name.value.trim(), doseLabel: form.doseLabel.value.trim() || '1 dose',
-      times: [...new Set(times)].sort(), withFood: form.withFood.checked, n: nn, active: existing?.active ?? true,
+      times: [...new Set(times)].sort(), withFood: form.withFood.checked, creatineG: num('creatineG'), n: nn, active: existing?.active ?? true,
     });
     ui.suppEdit = null; ui.suppDraft = null; render(); toast('Stack updated');
   }

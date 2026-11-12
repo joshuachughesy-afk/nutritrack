@@ -20,7 +20,7 @@ export const SUPP_TEMPLATES = [
   { tid: 'potassium', name: 'Potassium', doseLabel: '99 mg', withFood: true, times: ['13:00'], n: n({ potassium: 99 }) },
   { tid: 'electrolytes', name: 'Electrolyte mix', doseLabel: '1 stick / scoop', withFood: false, times: ['16:00'], n: n({ sodium: 500, potassium: 200, magnesium: 60 }) },
   { tid: 'fish-oil', name: 'Fish oil (omega-3)', doseLabel: '1 g (EPA+DHA ~600 mg)', withFood: true, times: ['19:00'], n: n({ kcal: 9, fat: 1 }) },
-  { tid: 'creatine', name: 'Creatine monohydrate', doseLabel: '5 g', withFood: false, times: ['08:00'], n: n({}) },
+  { tid: 'creatine', name: 'Creatine monohydrate', doseLabel: '5 g', creatineG: 5, withFood: false, times: ['08:00'], n: n({}) },
 ];
 
 const has = (s, k, min = 0.0001) => (s.n?.[k] || 0) >= min;
@@ -39,10 +39,23 @@ export function timingAdvice(s) {
     tips.push('Magnesium: the evening works well and may help sleep. Glycinate is gentle on the stomach.');
   if (has(s, 'zinc', 8))
     tips.push('Zinc: take with food to avoid nausea and keep it about 2 hours apart from iron and calcium. Long-term intake above 40 mg/day can deplete copper.');
-  if (nameHas(s, /creatine/)) tips.push('Creatine: take it every day; consistency matters more than timing.');
+  if (creatinePerDose(s)) tips.push('Creatine: take it every day; consistency matters more than timing. It pulls water into muscle, so your water goal goes up about 500 ml/day (about 1 L/day while loading with 20 g/day).');
   if (nameHas(s, /electrolyte/)) tips.push('Electrolytes: best before or during long, hot or sweaty sessions.');
   if (has(s, 'b12', 100)) tips.push('B12: any time of day. Mornings are common because some people find it stimulating.');
   return tips;
+}
+
+// Grams of creatine per dose. Falls back to parsing the dose label ("5 g") for older or custom entries named creatine.
+export function creatinePerDose(s) {
+  if (s.creatineG != null) return +s.creatineG || 0;
+  if (!/creatine/i.test(s.name)) return 0;
+  const m = /([\d.]+)\s*g\b/i.exec(s.doseLabel || '');
+  return m ? +m[1] : 5;
+}
+
+// Total daily creatine across the active stack (scheduled doses, whether or not checked off yet).
+export function dailyCreatine(supps) {
+  return supps.filter(s => s.active !== false).reduce((a, s) => a + creatinePerDose(s) * s.times.length, 0);
 }
 
 // Analyse the whole active stack for one day: totals, UL exposure and same-time interactions.

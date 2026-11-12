@@ -182,7 +182,19 @@ export const ML_PER_OZ = 29.5735;
  * Rest days drop carbs toward the low end; the saved carbs move to training days,
  * so the weekly average still matches your calorie target. Protein and fat stay constant.
  */
-export function dayTargets(p, isTraining) {
+/*
+ * Creatine draws water into muscle cells (≈ +1–2 kg intracellular water when saturated).
+ * The ISSN creatine position stand (Kreider et al., 2017) finds no evidence that it causes dehydration or cramping,
+ * but the water it holds still has to come from somewhere, so the usual practice is a modest increase in fluids:
+ * about +500 ml/day on a maintenance dose (3–5 g) and about +1 L/day during a loading phase (~20 g/day for 5–7 days).
+ */
+export function creatineWaterMl(creatineG) {
+  if (!creatineG) return 0;
+  if (creatineG >= 15) return 1000;
+  return 500;
+}
+
+export function dayTargets(p, isTraining, extras = {}) {
   const base = computeTargets(p);
   if (!base) return null;
   const w = p.weightKg;
@@ -201,9 +213,15 @@ export function dayTargets(p, isTraining) {
     else { carbs = restCarbs; kcal -= delta * 4; }
   }
   const loadExtra = { low: 350, moderate: 500, high: 650, peak: 800 }[p.trainingLoad] ?? 500;
-  const waterMl = Math.round((35 * w + (isTraining ? loadExtra : 0)) / 50) * 50;
+  const water = {
+    base: Math.round((35 * w) / 50) * 50,
+    training: isTraining ? loadExtra : 0,
+    creatine: creatineWaterMl(extras.creatineG),
+    creatineG: extras.creatineG || 0,
+  };
+  const waterMl = water.base + water.training + water.creatine;
   return {
-    ...base, carbs, kcal, cycling, dayType: isTraining ? 'training' : 'rest', waterMl,
+    ...base, carbs, kcal, cycling, dayType: isTraining ? 'training' : 'rest', waterMl, water,
     gkg: { ...base.gkg, carbs: carbs / w },
     micros: { ...base.micros, fiber: { target: Math.round((base.kcal / 1000) * 14) } },
   };
