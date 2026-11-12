@@ -125,6 +125,21 @@ class Store:
             self.set("recents", ([food_id] + [r for r in self.recents() if r != food_id])[:12])
         return eid
 
+    def update_entry(self, entry_id: str, **fields) -> None:
+        """Change meal, name, grams, amount_label and/or nutrients (n) of a logged entry."""
+        allowed = {"meal", "name", "grams", "amount_label", "n"}
+        sets, args = [], []
+        for k, v in fields.items():
+            if k in allowed and v is not None:
+                sets.append(f"{k}=?")
+                args.append(json.dumps(v) if k == "n" else v)
+        if sets:
+            self._x(f"update entries set {', '.join(sets)} where id=?", (*args, entry_id))
+
+    def entry(self, entry_id: str) -> dict | None:
+        rows = self._q("select * from entries where id=?", (entry_id,))
+        return {**dict(rows[0]), "n": json.loads(rows[0]["n"])} if rows else None
+
     def remove_entry(self, entry_id: str) -> None:
         self._x("delete from entries where id=?", (entry_id,))
 

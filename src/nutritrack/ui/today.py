@@ -105,7 +105,8 @@ def _tree_card(app: "App") -> ft.Control | None:
             grew = True
             app.celebrate(msg, big="level" in msg.lower())
 
-    tree = TreeView(svc.species_for(key), stage, size=210, grew=grew, on_tap=lambda _: app.go("garden"))
+    tree = TreeView(svc.species_for(key), stage, size=210, grew=grew, on_tap=lambda _: app.go("garden"),
+                    season=svc.season(key))
     track = ft.Row([ft.Container(height=7, expand=True, border_radius=99,
                                  bgcolor=th.ACCENT_SOFT if score >= lo else ft.Colors.with_opacity(0.25, ft.Colors.ON_SURFACE),
                                  animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT))
@@ -219,7 +220,8 @@ def _meal(app: "App", meal: str, label: str, icon) -> ft.Control:
             ft.Text(fmt(n["kcal"]), size=15, font_family=th.FONT_BOLD),
             ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=18, tooltip=f"Remove {e['name']}", on_click=lambda _, i=e["id"]: remove(i)),
         ], vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=ft.Padding.only(left=12, top=6, bottom=6),
-            border_radius=14, bgcolor=ft.Colors.SURFACE_CONTAINER))
+            border_radius=14, bgcolor=ft.Colors.SURFACE_CONTAINER, ink=True, tooltip="Tap to edit",
+            on_click=lambda _, e=e: (motion.haptic("select"), add_food.open_sheet(app, meal, edit=e))))
 
     actions: list[ft.Control] = [ft.FilledTonalButton("Add food", icon=ft.Icons.ADD_ROUNDED,
                                                       on_click=lambda _: (motion.haptic("light"), add_food.open_sheet(app, meal)))]

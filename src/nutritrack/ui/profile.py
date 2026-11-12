@@ -288,7 +288,16 @@ def _appearance_card(app: "App") -> ft.Control:
                   ft.Segment(value="light", label=ft.Text("Light"), icon=ft.Icon(ft.Icons.LIGHT_MODE)),
                   ft.Segment(value="dark", label=ft.Text("Dark"), icon=ft.Icon(ft.Icons.DARK_MODE))],
         selected=[mode], show_selected_icon=False, on_change=lambda e: app.set_theme_mode(list(e.control.selected)[0]))
-    return th.card(th.heading("Appearance", icon=ft.Icons.PALETTE_OUTLINED), ft.Row([seg], wrap=True))
+    hemi = ft.SegmentedButton(
+        segments=[ft.Segment(value="north", label=ft.Text("Northern")), ft.Segment(value="south", label=ft.Text("Southern")),
+                  ft.Segment(value="off", label=ft.Text("Always summer"))],
+        selected=[app.store.get("hemisphere", "north")], show_selected_icon=False,
+        on_change=lambda e: (app.store.set("hemisphere", list(e.control.selected)[0]), app.render()))
+    return th.card(th.heading("Appearance", icon=ft.Icons.PALETTE_OUTLINED), ft.Row([seg], wrap=True),
+                   ft.Text("Seasons for your trees", size=14, font_family=th.FONT_SEMI),
+                   th.muted(f"Your garden follows the seasons: blossom in spring, gold in autumn, snow in winter. "
+                            f"It's {app.svc.season()} now.", 12),
+                   ft.Row([hemi], wrap=True))
 
 
 def _databases_card(app: "App") -> ft.Control:

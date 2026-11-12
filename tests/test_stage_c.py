@@ -31,6 +31,12 @@ def test_off_units_are_converted_from_grams():
     assert f.servings[0].g == 31 and "31 g" in f.servings[0].label and f.servings[-1].g == 100
 
 
+def test_off_serving_label_is_tidied():
+    f = online.parse_off_product({"code": "3", "product_name": "Skyr", "serving_size": "150.0g", "serving_quantity": 150,
+                                  "nutriments": {"energy-kcal_100g": 62}})
+    assert f.servings[0].label == "150 g"
+
+
 def test_off_brand_and_kj_fallback():
     f = online.parse_off_product({"code": "1", "product_name": "Bar", "brands": "Acme",
                                   "nutriments": {"energy_100g": 418.4, "salt_100g": 1.0}})
@@ -205,3 +211,41 @@ def test_bundled_tree_assets_exist():
     for sp in SPECIES:
         for stage in range(6):
             assert (root / f"{sp}_{stage}.png").stat().st_size > 1000
+
+
+# ---------- seasons, forest, editing ----------
+def test_season_mapping_and_hemispheres():
+    from nutritrack.core.render3d import season_for
+    assert [season_for(m) for m in (1, 4, 7, 10)] == ["winter", "spring", "summer", "autumn"]
+    assert [season_for(m, "south") for m in (1, 4, 7, 10)] == ["summer", "autumn", "winter", "spring"]
+    assert season_for(1, "off") == "summer"
+
+
+def test_seasonal_trees_differ_and_winter_is_bare():
+    from nutritrack.core import render3d
+    if not render3d.available():
+        pytest.skip("Pillow not installed")
+    oak = {s: render3d.tree_mesh("oak", 4, s) for s in render3d.SEASONS}
+    assert len(oak["winter"]) < len(oak["summer"])            # no canopy in winter
+    assert len(render3d.tree_mesh("pine", 4, "winter")) > 100  # evergreens keep their needles
+    assert render3d.tree_png("oak", 4, 30, 64, "autumn") != render3d.tree_png("oak", 4, 30, 64, "summer")
+    forest = render3d.forest_png(((0, 0, "oak", 4), (3, 2, "pine", 5)), 35, 160, 105, "winter", 8)
+    assert forest[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_update_entry_and_food_for_entry(svc):
+    from nutritrack.core.foods import FOODS
+    from nutritrack.core.nutrition import scale_nutrients
+    k = today_key()
+    oats = next(f for f in FOODS if f.id == "oats")
+    eid = svc.store.add_entry(k, "breakfast", oats.name, scale_nutrients(oats.per100, 40), food_id="oats", grams=40,
+                              amount_label="½ cup dry (40 g)")
+    svc.store.update_entry(eid, meal="snacks", grams=80, amount_label="2 × ½ cup dry (40 g)", n=scale_nutrients(oats.per100, 80))
+    e = svc.store.entry(eid)
+    assert e["meal"] == "snacks" and e["grams"] == 80 and e["n"]["kcal"] == pytest.approx(379 * 0.8)
+    assert svc.food_for_entry(e).id == "oats"
+    # A custom food that was later deleted is rebuilt from the entry itself
+    gone = {**e, "food_id": "c-deleted", "name": "Lasagna", "grams": 250, "amount_label": "1 slice", "n": {"kcal": 500, "protein": 25}}
+    f = svc.food_for_entry(gone)
+    assert f.per100["kcal"] == 200 and f.servings[0].g == 250
+    assert svc.food_for_entry({**e, "food_id": None, "grams": 0}) is None  # quick adds edit as quick adds

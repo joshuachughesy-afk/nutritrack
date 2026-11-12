@@ -96,6 +96,9 @@ def parse_off_product(p: dict) -> Food | None:
     sq = _num(p.get("serving_quantity"))
     if sq and sq > 0:
         label = (p.get("serving_size") or "").strip() or f"1 serving ({sq:g} g)"
+        bare = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(g|ml)", label, re.I)
+        if bare:  # "150.0g" -> "150 g"
+            label = f"{float(bare.group(1)):g} {bare.group(2).lower()}"
         if not re.search(r"\d+(\.\d+)?\s*(g|ml)\b", label, re.I):
             label = f"{label} ({sq:g} g)"
         servings.append(Serving(label, sq))

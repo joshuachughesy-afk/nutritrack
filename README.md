@@ -35,12 +35,22 @@ can analyse directly with pandas or any SQLite tool.
   flat-shaded with a key light and sky fill, painted back to front and supersampled. Six species × six growth stages.
   Drag your tree sideways on Today or Garden to turn it on its turntable. Pre-rendered PNGs in `src/assets/trees/` are
   used if Pillow isn't available on a device.
+* **Seasons.** Trees and islands follow the real season (Northern/Southern hemisphere, or "always summer" in Profile →
+  Appearance): fresh greens, blossom and flowers in spring; orange/red/gold canopies, falling leaves and golden grass in
+  autumn; bare branches, snow-covered islands and snow on evergreens in winter.
+* **Your forest in 3D.** Progress → Garden shows every daily tree from the last 8 weeks on one landscape (a row per
+  week). Drag to orbit, or tap **Fly around** for a full flight around it.
 * **Motion.** Cards fade and rise in, staggered, when a screen opens. Progress bars, the gradient calorie ring and the
   water level animate from their previous value when you log something. When your tree reaches a new stage it pops,
   spins a full turn and throws confetti, with haptic feedback on phones.
 * **Look.** Plus Jakarta Sans (SIL OFL), a leaf-green palette with a warm off-white light theme and a deep-forest dark
   theme (System / Light / Dark in Profile → Appearance), softly shadowed cards, a sky-gradient tree card and shimmer
   placeholders while online searches load.
+
+## Editing what you logged
+
+Tap any food on Today to change its amount, unit or meal (or delete it). The editor starts from what you logged, and
+recognises clean serving multiples ("172 g" opens as "1 breast"). Quick adds open as an editable quick add.
 
 ## Online food data
 
@@ -97,7 +107,8 @@ src/nutritrack/store.py          SQLite storage
 src/nutritrack/service.py        App logic shared by the screens
 src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden, trends)
   theme.py · motion.py           Design system; animation, haptics and confetti
-  tree_view.py · notify.py       Interactive 3D tree; reminders
+  tree_view.py · forest_view.py  Interactive 3D tree and 3D forest
+  notify.py                      Reminders
 src/assets/                      Fonts (Plus Jakarta Sans) and pre-rendered trees
 tests/                           pytest suite
 legacy-web/                      Original HTML/JS app (reference)

@@ -43,7 +43,7 @@ def _garden(app: "App") -> list[ft.Control]:
 
     today_score = scores.get(today.isoformat())
     showcase = TreeView(svc.seed(), stage_for(today_score) if today_score is not None else 4, size=200,
-                        on_tap=lambda _: app.go("today", today_key()))
+                        on_tap=lambda _: app.go("today", today_key()), season=svc.season())
     sky = ft.LinearGradient(begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER, colors=th.SKY[app.dark])
     stage_card = th.card(ft.Column([
         ft.Container(showcase.control, alignment=ft.Alignment.CENTER),
@@ -89,7 +89,7 @@ def _garden(app: "App") -> list[ft.Control]:
         if d > today:
             content, bg, border = None, None, ft.Border.all(1, ft.Colors.OUTLINE_VARIANT)
         elif sc is not None:
-            content = ft.Image(src=tree_src(svc.species_for(k), stage_for(sc), 96), fit=ft.BoxFit.CONTAIN)
+            content = ft.Image(src=tree_src(svc.species_for(k), stage_for(sc), 96, season=svc.season(k)), fit=ft.BoxFit.CONTAIN)
             bg, border = ft.Colors.with_opacity(0.10, "#8a6a4a"), ft.Border.all(2, th.ACCENT) if d == today else None
         else:
             content = ft.Icon(ft.Icons.SHIELD, size=14, color="#3d7be0") if mark == "shielded" else None
@@ -97,7 +97,7 @@ def _garden(app: "App") -> list[ft.Control]:
         cells.append(ft.Container(content, col=1, aspect_ratio=1, border_radius=8, bgcolor=bg, border=border, padding=2,
                                   alignment=ft.Alignment.CENTER, tooltip=tip,
                                   on_click=(lambda _, key=k: app.go("today", key)) if sc is not None else None))
-    forest = th.card(th.heading("Forest", th.muted("last 8 weeks · tap a tree to open that day", 12)),
+    forest = th.card(th.heading("Calendar", th.muted("tap a tree to open that day", 12), icon=ft.Icons.CALENDAR_MONTH),
                      ft.ResponsiveRow(cells, columns=7, spacing=4, run_spacing=4))
 
     seed = svc.seed()
@@ -112,8 +112,7 @@ def _garden(app: "App") -> list[ft.Control]:
     for k, sp in SPECIES.items():
         locked = sp.level > lv.level
         seeds.append(ft.Container(ft.Column([
-            ft.Image(src=tree_src(k, 4, 112), width=80, height=80, opacity=0.35 if locked else 1,
-                     color=ft.Colors.GREY if locked else None, color_blend_mode=ft.BlendMode.SATURATION if locked else None),
+            ft.Image(src=tree_src(k, 4, 112, season=svc.season()), width=80, height=80, opacity=0.3 if locked else 1),
             ft.Text(sp.name, size=12, font_family=th.FONT_SEMI, text_align=ft.TextAlign.CENTER),
             *([th.icon_text(ft.Icons.LOCK, f"Level {sp.level}", th.MUTED, size=11)] if locked else []),
         ], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER), col={"xs": 4, "sm": 2}, padding=8, border_radius=12,
@@ -137,4 +136,5 @@ def _garden(app: "App") -> list[ft.Control]:
         th.muted(f"A day of {TREE_DAY}+ points is a tree day and extends your streak. Every 7-day streak earns a shield "
                  "(hold up to 2) that covers one missed day, so a busy day doesn't wipe out your progress.", 12),
     )
-    return [th.title("Your garden"), stage_card, hero, stats, forest, seed_card, how]
+    from .forest_view import ForestView
+    return [th.title("Your garden"), stage_card, hero, stats, ForestView(app).control, forest, seed_card, how]

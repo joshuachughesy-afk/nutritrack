@@ -86,7 +86,32 @@ def test_progress_trends_tab_builds(app):
         assert garden.build(app)
 
 
+def test_edit_sheet_and_forest(app):
+    e = app.store.entries(app.date)[0]
+    add_food.open_sheet(app, e["meal"], edit=e)
+    assert isinstance(app.page.dialogs[-1], ft.BottomSheet)
+    qid = app.store.add_entry(app.date, "dinner", "Restaurant", {"kcal": 700}, amount_label="quick add")
+    add_food.open_sheet(app, "dinner", edit=app.store.entry(qid))
+    from nutritrack.ui.forest_view import ForestView
+    assert ForestView(app).control
+
+
 def test_add_food_sheet_opens_and_adds(app):
     add_food.open_sheet(app, "breakfast")
     sheet = app.page.dialogs[-1]
     assert isinstance(sheet, ft.BottomSheet)
+
+
+def test_no_expanded_children_in_wrapping_rows():
+    """Flutter can't expand a child inside a wrapping Row (it renders an error box), so catch it statically."""
+    import ast
+    from pathlib import Path
+    bad = []
+    for p in (Path(__file__).parent.parent / "src" / "nutritrack" / "ui").glob("*.py"):
+        for node in ast.walk(ast.parse(p.read_text())):
+            if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "Row":
+                wrap = any(k.arg == "wrap" and getattr(k.value, "value", None) is True for k in node.keywords)
+                if wrap and node.args and isinstance(node.args[0], ast.List):
+                    bad += [f"{p.name}:{node.lineno}" for el in node.args[0].elts
+                            if isinstance(el, ast.Call) and any(k.arg == "expand" for k in el.keywords)]
+    assert not bad, bad

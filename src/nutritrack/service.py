@@ -133,6 +133,23 @@ class Service:
             return online.search_usda(query, self.usda_key())
         return online.search_off(query)
 
+    def food_for_entry(self, entry: dict) -> Food | None:
+        """The food behind a logged entry, rebuilt from the entry itself if that food no longer exists."""
+        f = self.find_food(entry["food_id"]) if entry.get("food_id") else None
+        if f or not entry.get("grams"):
+            return f
+        from .core.foods import Serving
+        g = float(entry["grams"])
+        per100 = {k: v * 100 / g for k, v in entry["n"].items()}
+        return Food(entry["food_id"] or "entry", entry["name"], "Logged", [Serving(entry["amount_label"] or f"{g:g} g", g)],
+                    per100, "custom")
+
+    # ---------- seasons ----------
+    def season(self, key: str | None = None) -> str:
+        from .core.render3d import season_for
+        d = date.fromisoformat(key or today_key())
+        return season_for(d.month, self.store.get("hemisphere", "north"))
+
     def lookup_barcode(self, code: str) -> Food | None:
         return online.lookup_barcode(code)
 

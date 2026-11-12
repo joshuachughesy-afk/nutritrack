@@ -18,7 +18,8 @@ if TYPE_CHECKING:
 MEAL_LABELS = {"breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner", "snacks": "Snacks"}
 
 
-def open_sheet(app: "App", meal: str) -> None:
+def open_sheet(app: "App", meal: str, edit: dict | None = None) -> None:
+    """Add food to a meal, or (with `edit`) change a logged entry's amount, unit or meal."""
     content = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
     sheet = ft.BottomSheet(
         content=ft.Container(content=content, padding=ft.Padding.only(left=16, right=16, top=8, bottom=24), height=620),
@@ -199,11 +200,21 @@ def open_sheet(app: "App", meal: str) -> None:
             app.page.run_task(start_camera)
 
     # ---------- amount + preview ----------
-    def detail(f: Food) -> None:
-        qty = th.num_field("Amount", 1, expand=1, autofocus=True)
-        unit = ft.Dropdown(label="Unit", value="0", dense=True, expand=2, border_radius=10,
+    def detail(f: Food, entry: dict | None = None) -> None:
+        q0, u0 = 1.0, "0"
+        if entry:  # start from what was logged
+            grams0 = float(entry["grams"] or 0)
+            match = next((i for i, sv in enumerate(f.servings) if sv.label and sv.label in (entry["amount_label"] or "")), None)
+            if match is None:  # e.g. logged as "172 g" when 172 g is exactly one breast
+                match = next((i for i, sv in enumerate(f.servings)
+                              if sv.g and 0.25 <= grams0 / sv.g <= 20 and abs(grams0 / sv.g * 4 - round(grams0 / sv.g * 4)) < 0.02), None)
+            q0, u0 = (grams0 / f.servings[match].g, str(match)) if match is not None else (grams0, "g")
+        qty = th.num_field("Amount", fmt(q0), expand=1, autofocus=True)
+        unit = ft.Dropdown(label="Unit", value=u0, dense=True, expand=2, border_radius=10,
                            options=[ft.DropdownOption(key=str(i), text=s.label) for i, s in enumerate(f.servings)]
                                    + [ft.DropdownOption(key="g", text="grams")])
+        meal_dd = ft.Dropdown(label="Meal", value=entry["meal"] if entry else meal, dense=True, border_radius=10,
+                              options=[ft.DropdownOption(key=k, text=v) for k, v in MEAL_LABELS.items()])
         preview = ft.Column(spacing=8)
         t = app.svc.targets_for(app.date)
 
@@ -234,6 +245,13 @@ def open_sheet(app: "App", meal: str) -> None:
             grams, label = amount()
             if grams <= 0:
                 return
+            if entry:
+                app.store.update_entry(entry["id"], meal=meal_dd.value, grams=grams, amount_label=label,
+                                       n=scale_nutrients(f.per100, grams))
+                close()
+                app.render()
+                app.toast(f"Updated {f.name}")
+                return
             if f.source in ("OFF", "USDA"):
                 app.svc.remember_food(f)  # keep a copy so it works offline and shows in recents
             app.store.add_entry(app.date, meal, f.name, scale_nutrients(f.per100, grams), food_id=f.id, grams=grams,
@@ -244,15 +262,28 @@ def open_sheet(app: "App", meal: str) -> None:
         qty.on_change = update_preview
         qty.on_submit = add
         unit.on_select = update_preview
-        content.controls = [header(f.name, back=True), ft.Row([qty, unit], spacing=10), preview,
-                            ft.FilledButton("Add", icon=ft.Icons.CHECK, on_click=add, width=float("inf"))]
+        if entry:
+            content.controls = [header(f.name), ft.Row([qty, unit], spacing=10), meal_dd, preview,
+                                ft.Row([ft.FilledButton("Save changes", icon=ft.Icons.CHECK, on_click=add, expand=True),
+                                        ft.OutlinedButton("Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=lambda _: delete(entry))])]
+        else:
+            content.controls = [header(f.name, back=True), ft.Row([qty, unit], spacing=10), preview,
+                                ft.FilledButton("Add", icon=ft.Icons.CHECK, on_click=add, width=float("inf"))]
         update_preview()
 
+    def delete(entry: dict) -> None:
+        app.store.remove_entry(entry["id"])
+        close()
+        app.render()
+        app.toast(f"Removed {entry['name']}")
+
     # ---------- quick add ----------
-    def quick() -> None:
-        name = ft.TextField(label="Description", value="Quick add", dense=True, border_radius=10)
-        fields = {k: th.num_field(lbl, 0 if k != "kcal" else None, expand=True)
+    def quick(entry: dict | None = None) -> None:
+        name = ft.TextField(label="Description", value=entry["name"] if entry else "Quick add", dense=True, border_radius=10)
+        fields = {k: th.num_field(lbl, fmt(entry["n"].get(k, 0)) if entry else (0 if k != "kcal" else None), expand=True)
                   for k, lbl in (("kcal", "Calories"), ("protein", "Protein (g)"), ("carbs", "Carbs (g)"), ("fat", "Fat (g)"))}
+        meal_dd = ft.Dropdown(label="Meal", value=entry["meal"] if entry else meal, dense=True, border_radius=10,
+                              options=[ft.DropdownOption(key=k, text=v) for k, v in MEAL_LABELS.items()])
 
         def add(_):
             n = empty_nutrients()
@@ -262,18 +293,30 @@ def open_sheet(app: "App", meal: str) -> None:
                 fields["kcal"].error = "Required"
                 app.page.update()
                 return
-            app.store.add_entry(app.date, meal, name.value.strip() or "Quick add", n, amount_label="quick add")
+            if entry:
+                app.store.update_entry(entry["id"], meal=meal_dd.value, name=name.value.strip() or "Quick add", n=n)
+            else:
+                app.store.add_entry(app.date, meal, name.value.strip() or "Quick add", n, amount_label="quick add")
             close()
             app.render()
 
-        content.controls = [header("Quick add", back=True), name,
+        content.controls = [header("Edit quick add" if entry else "Quick add", back=not entry), name,
                             ft.Row([fields["kcal"], fields["protein"]], spacing=10),
                             ft.Row([fields["carbs"], fields["fat"]], spacing=10),
-                            th.muted("Good for restaurant meals. Quick adds don't include micronutrients.", 12),
-                            ft.FilledButton("Add", icon=ft.Icons.CHECK, on_click=add, width=float("inf"))]
+                            *([meal_dd] if entry else []),
+                            th.muted("Good for restaurant meals. Quick adds don't include micronutrients.", 12)]
+        if entry:
+            content.controls.append(ft.Row([ft.FilledButton("Save changes", icon=ft.Icons.CHECK, on_click=add, expand=True),
+                                            ft.OutlinedButton("Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=lambda _: delete(entry))]))
+        else:
+            content.controls.append(ft.FilledButton("Add", icon=ft.Icons.CHECK, on_click=add, width=float("inf")))
         app.page.update()
 
-    picker()
+    if edit:
+        food = app.svc.food_for_entry(edit)
+        detail(food, edit) if food else quick(edit)
+    else:
+        picker()
     app.page.show_dialog(sheet)
 
 

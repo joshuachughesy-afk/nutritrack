@@ -94,6 +94,29 @@ def _frustum(y0: float, y1: float, r0: float, r1: float, color, rnd, sides: int 
     return out
 
 
+def _limb(p0: Vec, p1: Vec, r0: float, r1: float, color, rnd, sides: int = 5) -> list[Face]:
+    """A tapered cylinder between two arbitrary points (branches)."""
+    axis = _norm(_sub(p1, p0))
+    ref = (0.0, 1.0, 0.0) if abs(axis[1]) < 0.9 else (1.0, 0.0, 0.0)
+    u = _norm(_cross(axis, ref))
+    v = _cross(axis, u)
+    center = _mul(_add(p0, p1), 0.5)
+    out: list[Face] = []
+    for i in range(sides):
+        a0, a1 = 2 * math.pi * i / sides, 2 * math.pi * (i + 1) / sides
+        ring = lambda c, r, a: _add(c, _add(_mul(u, r * math.cos(a)), _mul(v, r * math.sin(a))))  # noqa: E731
+        q = [ring(p0, r0, a0), ring(p0, r0, a1), ring(p1, r1, a1), ring(p1, r1, a0)]
+        col = _vary(color, rnd, 0.05)
+        out += [(*_outward((q[0], q[1], q[2]), center), col), (*_outward((q[0], q[2], q[3]), center), col)]
+    return out
+
+
+def transform(faces: list[Face], scale: float = 1.0, offset: Vec = (0.0, 0.0, 0.0)) -> list[Face]:
+    s_, (ox, oy, oz) = scale, offset
+    f = lambda p: (p[0] * s_ + ox, p[1] * s_ + oy, p[2] * s_ + oz)  # noqa: E731
+    return [(f(a), f(b), f(c), col) for a, b, c, col in faces]
+
+
 def _cone(y0: float, height: float, radius: float, color, rnd, sides: int = 8) -> list[Face]:
     apex = (0.0, y0 + height, 0.0)
     center = (0.0, y0 + height * 0.3, 0.0)
@@ -107,8 +130,12 @@ def _cone(y0: float, height: float, radius: float, color, rnd, sides: int = 8) -
     return out
 
 
-def _island(rnd: random.Random, radius: float = 0.78) -> list[Face]:
-    """A floating hexagonal grass island with a rocky underside."""
+GRASS = {"spring": "#78c95f", "summer": "#6dbb5a", "autumn": "#a7b24c", "winter": "#eef3f7"}
+FLOWERS = ["#ffd34d", "#ff8fb3", "#ffffff", "#b39dff"]
+
+
+def _island(rnd: random.Random, radius: float = 0.78, season: str = "summer") -> list[Face]:
+    """A floating grass island with a rocky underside; the grass follows the season."""
     sides, out = 9, []
     rim = []
     for i in range(sides):
@@ -116,7 +143,7 @@ def _island(rnd: random.Random, radius: float = 0.78) -> list[Face]:
         r = radius * (1 + rnd.uniform(-0.05, 0.05))
         rim.append((r * math.cos(a), rnd.uniform(-0.015, 0.015), r * math.sin(a)))
     top_c = (0.0, 0.02, 0.0)
-    grass, dirt, rock = _hex("#6dbb5a"), _hex("#8a6142"), _hex("#6e5a4b")
+    grass, dirt, rock = _hex(GRASS.get(season, GRASS["summer"])), _hex("#8a6142"), _hex("#6e5a4b")
     for i in range(sides):
         a, b = rim[i], rim[(i + 1) % sides]
         out.append((*_outward((top_c, a, b), (0, -1, 0)), _vary(grass, rnd, 0.06)))
@@ -127,6 +154,22 @@ def _island(rnd: random.Random, radius: float = 0.78) -> list[Face]:
     for _ in range(5):  # little pebbles and tufts
         ang, d = rnd.uniform(0, 2 * math.pi), rnd.uniform(0.45, 0.8) * radius
         out += _icosphere((d * math.cos(ang), 0.03, d * math.sin(ang)), (0.06, 0.035, 0.06), _hex("#9aa59a"), rnd, 0, 0.2)
+    out += _ground_details(rnd, radius * 0.85, season)
+    return out
+
+
+def _ground_details(rnd: random.Random, radius: float, season: str, count: int = 9) -> list[Face]:
+    """Spring flowers, autumn leaf litter, winter snow lumps."""
+    out: list[Face] = []
+    for _ in range(count if season != "summer" else 0):
+        ang, d = rnd.uniform(0, 2 * math.pi), rnd.uniform(0.3, 1.0) * radius
+        x, z = d * math.cos(ang), d * math.sin(ang)
+        if season == "spring":
+            out += _icosphere((x, 0.04, z), (0.035, 0.03, 0.035), _hex(rnd.choice(FLOWERS)), rnd, 0, 0.1)
+        elif season == "autumn":
+            out += _icosphere((x, 0.02, z), (0.06, 0.012, 0.04), _hex(rnd.choice(["#d9822b", "#c9452c", "#e6b43a"])), rnd, 0, 0.2)
+        elif season == "winter":
+            out += _icosphere((x, 0.02, z), (0.08, 0.035, 0.08), _hex("#ffffff"), rnd, 0, 0.2)
     return out
 
 
@@ -140,13 +183,31 @@ SPECIES_COLORS = {
     "golden": ("#f2c94c", "#7a5a2a", "#fff3b0"),
 }
 FRUIT = "#e5484d"
+AUTUMN_LEAF = {"oak": "#d98a2e", "cherry": "#e0663f", "maple": "#c43d2a", "birch": "#e8c23a"}
+SPRING_LEAF = {"oak": "#6cc35a", "maple": "#7cc464", "birch": "#b5dc6a"}
+EVERGREEN = {"pine", "golden"}
+SEASONS = ("spring", "summer", "autumn", "winter")
 
 
-def tree_mesh(species: str, stage: int) -> list[Face]:
+def season_for(month: int, hemisphere: str = "north") -> str:
+    """Meteorological seasons; southern hemisphere is shifted six months."""
+    if hemisphere == "off":
+        return "summer"
+    m = month if hemisphere != "south" else (month + 5) % 12 + 1
+    return {12: "winter", 1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring",
+            6: "summer", 7: "summer", 8: "summer"}.get(m, "autumn")
+
+
+def tree_mesh(species: str, stage: int, season: str = "summer", island: bool = True, detail: int = 1) -> list[Face]:
     rnd = random.Random(f"{species}-{stage}")
     leaf_hex, trunk_hex, bloom_hex = SPECIES_COLORS.get(species, SPECIES_COLORS["oak"])
+    if season == "autumn":
+        leaf_hex = AUTUMN_LEAF.get(species, leaf_hex)
+    elif season == "spring":
+        leaf_hex = SPRING_LEAF.get(species, leaf_hex)
     leaf, trunk = _hex(leaf_hex), _hex(trunk_hex)
-    faces = _island(rnd)
+    bare = season == "winter" and species not in EVERGREEN and stage >= 2
+    faces = _island(rnd, season=season) if island else []
     if stage == 0:  # a mound with a seed
         faces += _icosphere((0, 0.02, 0), (0.22, 0.1, 0.22), _hex("#8a6142"), rnd, 1, 0.1)
         faces += _icosphere((0.02, 0.12, 0.0), (0.06, 0.045, 0.05), _hex("#5c3b22"), rnd, 0, 0.05)
@@ -168,7 +229,7 @@ def tree_mesh(species: str, stage: int) -> list[Face]:
         for i in range(tiers):
             y = h * 0.3 + i * step
             rad = r * (1.05 - i * 0.2)
-            faces += _cone(y, tier_h, rad, leaf, rnd, 9)
+            faces += _cone(y, tier_h, rad, leaf, rnd, 9 if detail else 6)
             cones.append((y, tier_h, rad))
         top = None
     else:
@@ -180,13 +241,29 @@ def tree_mesh(species: str, stage: int) -> list[Face]:
                 bx = side * r * 0.35
                 faces += _frustum(h * 0.55, h * 0.85, tw * 0.4, tw * 0.25, trunk, rnd, 5, x=bx * 0.5)
         stretch = 1.35 if species == "birch" else 1.0
+        if bare:  # winter: bare branches with a little snow on them
+            for k in range(5 if stage >= 3 else 3):
+                ang = k * 2 * math.pi / (5 if stage >= 3 else 3) + rnd.uniform(-0.3, 0.3)
+                base = (0.0, h * rnd.uniform(0.7, 0.95), 0.0)
+                tip = (math.cos(ang) * r * 0.9, h + r * rnd.uniform(0.5, 1.0), math.sin(ang) * r * 0.9)
+                faces += _limb(base, tip, tw * 0.45, tw * 0.15, trunk, rnd)
+                mid = _mul(_add(base, tip), 0.5)
+                twig = (mid[0] + math.cos(ang + 1.2) * r * 0.35, mid[1] + r * 0.4, mid[2] + math.sin(ang + 1.2) * r * 0.35)
+                faces += _limb(mid, twig, tw * 0.2, tw * 0.08, trunk, rnd, 4)
+                faces += _icosphere(tip, (0.05, 0.03, 0.05), _hex("#ffffff"), rnd, 0, 0.1)
+            return faces
         clusters = [(0, h + r * 0.55, 0, 1.0)] + [
             (math.cos(a) * r * 0.62, h + r * 0.25 + rnd.uniform(-0.05, 0.08), math.sin(a) * r * 0.62, 0.72)
             for a in [rnd.uniform(0, 2 * math.pi) + k * 2 * math.pi / (3 if stage < 4 else 4) for k in range(3 if stage < 4 else 4)]]
         for cx, cy, cz, k in clusters:
             rr = r * k
-            faces += _icosphere((cx, cy, cz), (rr * 0.78, rr * 0.7 * stretch, rr * 0.78), leaf, rnd, 1, 0.14)
+            faces += _icosphere((cx, cy, cz), (rr * 0.78, rr * 0.7 * stretch, rr * 0.78), leaf, rnd, detail, 0.14)
         top = h + r * 1.3
+        if season == "autumn" and stage >= 2:  # leaves drifting down around the tree
+            for _ in range(10):
+                ang, d = rnd.uniform(0, 2 * math.pi), rnd.uniform(0.35, 0.85)
+                y = rnd.uniform(0.15, h + r * 0.4)
+                faces += _icosphere((math.cos(ang) * d, y, math.sin(ang) * d), (0.04, 0.012, 0.03), _vary(leaf, rnd, 0.15), rnd, 0, 0.3)
     if stage == 5 and species == "pine":  # pinecones / berries sitting on the cone surfaces
         for _ in range(10):
             y0, th, rad = cones[rnd.randrange(len(cones))]
@@ -194,7 +271,7 @@ def tree_mesh(species: str, stage: int) -> list[Face]:
             ang = rnd.uniform(0, 2 * math.pi)
             rr = rad * (1 - f) * 0.92
             faces += _icosphere((math.cos(ang) * rr, y0 + th * f, math.sin(ang) * rr), (0.05, 0.05, 0.05), _hex(FRUIT), rnd, 0, 0.05)
-    elif stage == 5:  # blossoms or fruit
+    elif (stage == 5 or (season == "spring" and species == "cherry" and stage >= 3)) and not bare:  # blossoms or fruit
         deco = _hex(bloom_hex or FRUIT)
         for _ in range(14 if bloom_hex else 9):
             ang, el = rnd.uniform(0, 2 * math.pi), rnd.uniform(-0.2, 1.0)
@@ -211,10 +288,13 @@ SKY = (0.9, 0.95, 1.05)
 
 
 def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevation_deg: float = 22.0,
-           supersample: int = 3, shadow: bool = True) -> bytes:
+           supersample: int = 3, shadow: bool = True, snow: bool = False, height: int | None = None,
+           zoom: float = 0.385, center_y: float = 0.72) -> bytes:
     from PIL import Image, ImageDraw, ImageFilter
 
-    ss = size * supersample
+    w_px, h_px = size, height or size
+    ss = w_px * supersample
+    ss_h = h_px * supersample
     ay, ax = math.radians(angle_deg), math.radians(elevation_deg)
     cy_, sy_, cx_, sx_ = math.cos(ay), math.sin(ay), math.cos(ax), math.sin(ax)
 
@@ -224,14 +304,20 @@ def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevatio
         y, z = y * cx_ - z * sx_, y * sx_ + z * cx_          # look down a little (around X)
         return x, y, z
 
-    scale = ss * 0.385
-    ox, oy = ss / 2, ss * 0.72
+    scale = min(ss, ss_h) * zoom
+    ox, oy = ss / 2, ss_h * center_y
     tris = []
+    white = (250, 252, 255)
     for a, b, c, col in faces:
         ta, tb, tc = xf(a), xf(b), xf(c)
         n = _norm(_cross(_sub(tb, ta), _sub(tc, ta)))
         if n[2] <= 0:   # facing away from the camera
             continue
+        if snow:  # snow settles on surfaces that face up
+            up = _norm(_cross(_sub(b, a), _sub(c, a)))[1]
+            if up > 0.55:
+                t = min(1.0, (up - 0.55) / 0.3) * 0.85
+                col = tuple(int(col[i] * (1 - t) + white[i] * t) for i in range(3))
         diff = max(0.0, _dot(n, LIGHT))
         sky = 0.5 + 0.5 * n[1]
         k = 0.42 + 0.62 * diff
@@ -241,23 +327,69 @@ def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevatio
         tris.append((depth, pts, rgb))
     tris.sort(key=lambda t: t[0])
 
-    img = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
+    img = Image.new("RGBA", (ss, ss_h), (0, 0, 0, 0))
     if shadow:  # soft contact shadow beneath the floating island
-        sh = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
+        sh = Image.new("RGBA", (ss, ss_h), (0, 0, 0, 0))
         ImageDraw.Draw(sh).ellipse([ox - scale * 0.8, oy + scale * 0.62, ox + scale * 0.8, oy + scale * 0.8], fill=(0, 0, 0, 70))
         img = Image.alpha_composite(img, sh.filter(ImageFilter.GaussianBlur(ss * 0.02)))
     draw = ImageDraw.Draw(img)
     for _, pts, rgb in tris:
         draw.polygon(pts, fill=(*rgb, 255), outline=(*rgb, 255))
-    img = img.resize((size, size), Image.LANCZOS)
+    img = img.resize((w_px, h_px), Image.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=True)
     return buf.getvalue()
 
 
 @lru_cache(maxsize=512)
-def tree_png(species: str, stage: int, angle: int = 30, size: int = 256) -> bytes:
-    return render(tree_mesh(species, stage), angle_deg=angle, size=size)
+def tree_png(species: str, stage: int, angle: int = 30, size: int = 256, season: str = "summer") -> bytes:
+    return render(tree_mesh(species, stage, season), angle_deg=angle, size=size, snow=season == "winter")
+
+
+# ---------- the whole forest ----------
+def forest_mesh(trees: tuple[tuple[int, int, str, int], ...], cols: int = 7, rows: int = 8, season: str = "summer") -> list[Face]:
+    """One landscape with a plot per day: trees = ((col, row, species, stage), ...)."""
+    rnd = random.Random(f"forest-{cols}-{rows}-{season}")
+    sp = 0.62
+    w, d = cols * sp, rows * sp
+    x0, z0 = -w / 2 + sp / 2, -d / 2 + sp / 2
+    grass, dirt, rock = _hex(GRASS.get(season, GRASS["summer"])), _hex("#8a6142"), _hex("#6e5a4b")
+    faces: list[Face] = []
+    # Ground: a gently rolling grid of quads
+    gx, gz = cols + 1, rows + 1
+    hgt = [[rnd.uniform(-0.02, 0.02) for _ in range(gz + 1)] for _ in range(gx + 1)]
+    xs = [-w / 2 - sp / 2 + i * (w + sp) / gx for i in range(gx + 1)]
+    zs = [-d / 2 - sp / 2 + j * (d + sp) / gz for j in range(gz + 1)]
+    center = (0.0, -1.0, 0.0)
+    for i in range(gx):
+        for j in range(gz):
+            p = [(xs[i], hgt[i][j], zs[j]), (xs[i + 1], hgt[i + 1][j], zs[j]), (xs[i + 1], hgt[i + 1][j + 1], zs[j + 1]),
+                 (xs[i], hgt[i][j + 1], zs[j + 1])]
+            faces += [(*_outward((p[0], p[1], p[2]), center), _vary(grass, rnd, 0.05)),
+                      (*_outward((p[0], p[2], p[3]), center), _vary(grass, rnd, 0.05))]
+    # Dirt skirt and rocky underside along the edges
+    edge = [(xs[i], zs[0]) for i in range(gx + 1)] + [(xs[gx], zs[j]) for j in range(1, gz + 1)] + \
+           [(xs[i], zs[gz]) for i in range(gx - 1, -1, -1)] + [(xs[0], zs[j]) for j in range(gz - 1, 0, -1)]
+    for k in range(len(edge)):
+        (ax, az), (bx, bz) = edge[k], edge[(k + 1) % len(edge)]
+        a, b = (ax, 0.0, az), (bx, 0.0, bz)
+        a2, b2 = (ax * 0.97, -0.24, az * 0.97), (bx * 0.97, -0.24, bz * 0.97)
+        faces += [(*_outward((a, b, b2), (0, 0, 0)), _vary(dirt, rnd)), (*_outward((a, b2, a2), (0, 0, 0)), _vary(dirt, rnd))]
+        tip = (((ax + bx) / 2) * 0.55, -0.55 - rnd.uniform(0, 0.25), ((az + bz) / 2) * 0.55)
+        faces.append((*_outward((a2, b2, tip), (0, -0.2, 0)), _vary(rock, rnd, 0.12)))
+    faces += _ground_details(rnd, min(w, d) * 0.6, season, count=30)
+    for col, row, species, stage in trees:
+        tree = tree_mesh(species, stage, season, island=False, detail=0)
+        faces += transform(tree, 0.42, (x0 + col * sp + rnd.uniform(-0.06, 0.06), 0.0, z0 + row * sp + rnd.uniform(-0.06, 0.06)))
+    return faces
+
+
+@lru_cache(maxsize=64)
+def forest_png(trees: tuple[tuple[int, int, str, int], ...], angle: int = 35, width: int = 640, height: int = 420,
+               season: str = "summer", rows: int = 8) -> bytes:
+    faces = forest_mesh(trees, 7, rows, season)
+    return render(faces, angle_deg=angle, size=width, height=height, elevation_deg=34, supersample=2, shadow=False,
+                  snow=season == "winter", zoom=0.185, center_y=0.52)
 
 
 def available() -> bool:
