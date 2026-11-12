@@ -136,6 +136,14 @@ class Service:
     def lookup_barcode(self, code: str) -> Food | None:
         return online.lookup_barcode(code)
 
+    def full_food(self, f: Food) -> Food:
+        """Search hits are summaries; fetch the full record (servings, all nutrients) before showing it."""
+        if f.source == "OFF":
+            return online.lookup_barcode(f.id.removeprefix("off-")) or f
+        if f.source == "USDA":
+            return online.usda_food(f.id.removeprefix("usda-"), self.usda_key()) or f
+        return f
+
     def remember_food(self, f: Food) -> None:
         """Keep a copy of an online food so it works offline and shows up in recents."""
         self.store.save_custom_food(f)

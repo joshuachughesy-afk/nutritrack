@@ -169,3 +169,41 @@ def search_usda(query: str, api_key: str | None = None, fetch: Fetch | None = No
     if "error" in data:
         raise RuntimeError(friendly_error(data["error"]))
     return [x for x in (parse_usda_food(f) for f in data.get("foods", [])) if x]
+
+
+def parse_usda_detail(d: dict) -> Food | None:
+    """A full FoodData Central food (/fdc/v1/food/{id}): nested nutrients plus household portions."""
+    flat = {"fdcId": d.get("fdcId"), "description": d.get("description"),
+            "foodCategory": (d.get("foodCategory") or {}).get("description") if isinstance(d.get("foodCategory"), dict)
+            else d.get("foodCategory"),
+            "foodNutrients": [{"nutrientId": (fn.get("nutrient") or {}).get("id"), "value": fn.get("amount")}
+                              for fn in d.get("foodNutrients", []) if fn.get("amount") is not None]}
+    food = parse_usda_food(flat)
+    if food is None:
+        return None
+    portions = []
+    for p in sorted(d.get("foodPortions") or [], key=lambda p: p.get("sequenceNumber") or 99):
+        g = _num(p.get("gramWeight"))
+        if not g:
+            continue
+        unit = ((p.get("measureUnit") or {}).get("name") or "").strip()
+        unit = "" if unit.lower() in ("undetermined", "") else unit + " "
+        desc = (p.get("portionDescription") or p.get("modifier") or "").strip()
+        amount = _num(p.get("amount")) or 1
+        label = desc if desc and desc[0].isdigit() else f"{amount:g} {unit}{desc}".strip()
+        portions.append(Serving(f"{label} ({g:g} g)", g))
+    # Put typical single-item portions first; drop near-duplicates by label.
+    seen, servings = set(), []
+    for sv in portions:
+        if sv.label not in seen:
+            seen.add(sv.label); servings.append(sv)
+    food.servings = servings[:6] + [Serving("100 g", 100)]
+    return food
+
+
+def usda_food(fdc_id: int | str, api_key: str | None = None, fetch: Fetch | None = None) -> Food | None:
+    url = f"https://api.nal.usda.gov/fdc/v1/food/{int(fdc_id)}"
+    data = (fetch or (lambda u, h: http_json(u, h)))(url, {"X-Api-Key": api_key or "DEMO_KEY"})
+    if "error" in data:
+        raise RuntimeError(friendly_error(data["error"]))
+    return parse_usda_detail(data)

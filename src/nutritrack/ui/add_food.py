@@ -50,7 +50,7 @@ def open_sheet(app: "App", meal: str) -> None:
         status.value = "Loading product…"
         app.page.update()
         try:
-            full = await asyncio.to_thread(online.lookup_barcode, f.id.removeprefix("off-"))
+            full = await asyncio.to_thread(app.svc.full_food, f)
         except Exception:
             full = None
         detail(full or f)
@@ -72,7 +72,7 @@ def open_sheet(app: "App", meal: str) -> None:
             status.value = (f"{len(hits)} results. Values are from "
                             + ("USDA FoodData Central (lab-measured)." if query["source"] == "usda"
                                else "Open Food Facts (crowd-sourced, so check against the label)."))
-            online_results.controls = [result_tile(f, fetch_full=f.source == "OFF") for f in hits] or \
+            online_results.controls = [result_tile(f, fetch_full=True) for f in hits] or \
                 [th.muted("No results online either. Create it under Foods.", 13)]
         except Exception as ex:
             status.value = f"Couldn't search online: {ex}"

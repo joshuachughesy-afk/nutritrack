@@ -73,6 +73,16 @@ def test_usda_parse_and_search():
         online.search_usda("x", fetch=lambda u, h: {"error": {"code": "OVER_RATE_LIMIT"}})
 
 
+def test_usda_detail_has_household_portions():
+    f = online.parse_usda_detail(load("usda_food_173944.json"))  # real response
+    assert f.id == "usda-173944" and f.per100["kcal"] == 89 and f.per100["potassium"] == 358
+    labels = [s.label for s in f.servings]
+    assert any("cup, sliced (150 g)" in l for l in labels) and labels[-1] == "100 g" and len(f.servings) <= 7
+    seen = {}
+    online.usda_food(173944, "k", fetch=lambda u, h: (seen.update(u=u, h=h), load("usda_food_173944.json"))[1])
+    assert seen["u"].endswith("/fdc/v1/food/173944") and seen["h"]["X-Api-Key"] == "k"
+
+
 # ---------- Barcode decoding ----------
 @pytest.mark.skipif(not barcode.available(), reason="zxing-cpp not installed")
 def test_barcode_decodes_photo():
