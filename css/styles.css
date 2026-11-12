@@ -249,3 +249,27 @@ label.check input { width: auto; accent-color: var(--accent); }
 .water-parts { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
 .water-parts li { display: flex; justify-content: space-between; gap: 8px; }
 .creatine-hint { align-self: end; margin: 0 0 6px; }
+
+/* Stage 3: pace + reminders */
+.pace-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pace-head { display: flex; align-items: center; gap: 8px; font-size: .9rem; margin-bottom: 4px; }
+.pace-head > span:first-child { font-weight: 600; min-width: 64px; }
+.pace-head .muted { flex: 1; text-align: right; }
+.pace-bar { position: relative; overflow: visible; }
+.fill-kcal { background: var(--accent); }
+.fill-water { background: #3a97d6; }
+.pace-marker { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 2px; }
+.pace-marker::after { content: ''; position: absolute; top: -3px; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--text); }
+.gaps { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); }
+.gaps h4 { font-size: .9rem; margin-bottom: 4px; }
+.gaps p { margin: 4px 0; }
+.reminder-cta { margin: 12px 0 0; padding: 10px; border-radius: 10px; background: var(--surface-2); }
+.perm { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
+#banner { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); z-index: 70; display: grid; gap: 8px; pointer-events: none; }
+.banner-item {
+  pointer-events: auto; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / .18); padding: 10px 8px 10px 14px; display: flex; gap: 8px; align-items: flex-start; font-size: .92rem;
+  animation: slide-in .3s ease;
+}
+.banner-item span { flex: 1; padding-top: 6px; }
+@keyframes slide-in { from { transform: translateY(-20px); opacity: 0; } }

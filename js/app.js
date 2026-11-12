@@ -1,6 +1,8 @@
 import { store, uid } from './store.js';
 import { FOODS } from './foods.js';
 import { TRAINING, LOADS } from './training.js';
+import { DEFAULT_SCHEDULE, computePace, microGaps, toMin } from './pacing.js';
+import { DEFAULT_REMINDERS, dueEvents, notifSupport, requestNotifications, registerSW, showNotification } from './reminders.js';
 import { SUPP_TEMPLATES, timingAdvice, analyzeStack, dailyCreatine, creatinePerDose } from './supplements.js';
 import {
   MACROS, MICROS, ACTIVITY, GOALS, computeTargets, scaleNutrients, sumNutrients, emptyNutrients,
@@ -34,6 +36,18 @@ const imperial = () => store.get().units === 'imperial';
 const fmtWater = ml => imperial() ? `${Math.round(ml / ML_PER_OZ)} oz` : ml >= 1000 ? `${Number((ml / 1000).toFixed(2))} L` : `${ml} ml`;
 const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const fmtTime = hhmm => { const [h, m] = hhmm.split(':').map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+
+const schedule = () => ({ ...DEFAULT_SCHEDULE, ...(store.get().schedule ?? {}) });
+const reminderSettings = () => ({ ...DEFAULT_REMINDERS, ...(store.get().reminders ?? {}) });
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const dayTotals = key => {
+  const day = store.dayData(key);
+  return {
+    day,
+    totals: sumNutrients([...store.day(key).map(e => e.n), ...(day.supps ?? []).map(x => x.n)]),
+    waterMl: (day.water ?? []).reduce((a, w) => a + w.ml, 0),
+  };
+};
 
 const allFoods = () => [...store.get().customFoods, ...FOODS];
 const findFood = id => allFoods().find(f => f.id === id);
@@ -148,6 +162,7 @@ function viewToday() {
       <button class="training-badge" data-nav="profile"><span class="chip ${emphasisClass(t.training.emphasis)}">${t.training.name} · ${t.training.emphasis}</span>
         <span class="muted small">C ${t.gkg.carbs.toFixed(1)} · P ${t.gkg.protein.toFixed(1)} · F ${t.gkg.fat.toFixed(1)} g/kg</span></button>
     </section>
+    ${ui.date === dateKey(new Date()) ? viewPace(t) : ''}
     <div class="two-col">${viewWater(t, day)}${viewSuppChecklist(day)}</div>
     ${meals}
     <section class="card">
@@ -275,6 +290,60 @@ function viewSupps() {
     </section>`;
 }
 
+function viewPace(t) {
+  const { totals, waterMl } = dayTotals(ui.date);
+  const sched = schedule();
+  const rows = computePace({ targets: t, totals, waterMl, sched, nowMin: nowMin() });
+  const label = { early: 'early', behind: 'behind pace', on: 'on pace', ahead: 'ahead' };
+  const cls = r => r.status === 'behind' ? 's-low' : r.status === 'ahead' && !r.aheadOk ? 's-mid' : r.status === 'early' ? 's-none' : 's-met';
+  const show = (v, unit) => unit === 'ml' ? fmtWater(v) : `${fmt(v)}${unit === 'kcal' ? '' : ' g'}`;
+  const gaps = nowMin() >= toMin(sched.dinner) - 60 ? microGaps({ targets: t, totals, foods: allFoods(), limit: 3 }) : [];
+  const n = notifSupport(), rs = reminderSettings();
+  return `<section class="card pace">
+    <header class="meal-head"><h3>⏱️ Pace check</h3><span class="muted small">where you'd expect to be by ${fmtTime(nowHHMM())}</span></header>
+    <ul class="pace-list">${rows.map(r => `
+      <li>
+        <div class="pace-head"><span>${r.label}</span><span class="muted num small">${show(r.actual, r.unit)} · expected ~${show(r.expected, r.unit)}</span><span class="chip ${cls(r)}">${label[r.status]}</span></div>
+        <div class="bar pace-bar"><div class="bar-fill fill-${r.key}" style="width:${Math.min(r.actual / r.target, 1) * 100}%"></div>
+          <span class="pace-marker" style="left:${Math.min(r.share, 1) * 100}%" title="Expected by now"></span></div>
+      </li>`).join('')}</ul>
+    ${gaps.length ? `<div class="gaps"><h4>Close today's gaps</h4>${gaps.map(g => `<p class="small"><strong>${g.def.label}</strong> ${Math.round(g.pct * 100)}%: ${g.foods.map(f => `${esc(f.name)} <span class="muted">(${esc(f.serving)}, +${Math.round(f.pct * 100)}%)</span>`).join(' · ')}</p>`).join('')}</div>` : ''}
+    ${!rs.enabled ? `<p class="small reminder-cta">🔔 Get check-ins, water nudges and supplement reminders. <button class="link" data-action="goto-reminders">Turn on reminders</button></p>`
+      : n === 'denied' ? '<p class="small muted">Notifications are blocked in your browser settings, so reminders show inside the app instead.</p>' : ''}
+  </section>`;
+}
+
+function viewReminders() {
+  const sched = schedule(), rs = reminderSettings(), n = notifSupport();
+  const permText = { granted: '✅ Notifications allowed on this device', denied: '🚫 Blocked. Allow notifications for this site in your browser settings.', default: 'Not yet allowed. You\'ll be asked when you save with reminders on.', unsupported: 'This browser can\'t show notifications. Reminders will appear inside the app.' }[n];
+  const ti = (name, v) => `<input type="time" name="${name}" value="${v ?? ''}">`;
+  return `<section class="card" id="reminders">
+    <h3>Schedule & reminders</h3>
+    <p class="muted small">Your meal times set the pace: by about 30 minutes after lunch you'd expect about 55% of the day's food. Water spreads evenly until an hour before bed.</p>
+    <form id="reminders-form" class="form-grid">
+      <label>Wake up${ti('wake', sched.wake)}</label>
+      <label>Bedtime${ti('sleep', sched.sleep)}</label>
+      <label>Breakfast${ti('breakfast', sched.breakfast)}</label>
+      <label>Lunch${ti('lunch', sched.lunch)}</label>
+      <label>Dinner${ti('dinner', sched.dinner)}</label>
+      <span></span>
+      <label class="span-2 check"><input type="checkbox" name="enabled" ${rs.enabled ? 'checked' : ''}> <strong>Send me reminders</strong></label>
+      <label class="span-2 check"><input type="checkbox" name="supplements" ${rs.supplements ? 'checked' : ''}> Supplement doses at their scheduled times</label>
+      <label class="check"><input type="checkbox" name="water" ${rs.water ? 'checked' : ''}> Water nudges when I'm behind</label>
+      <label>Check water every<select name="waterEveryH">${[1, 1.5, 2, 3].map(h => `<option value="${h}" ${+rs.waterEveryH === h ? 'selected' : ''}>${h} h</option>`).join('')}</select></label>
+      <fieldset class="span-2"><legend>Daily check-ins <span class="muted small">(macro and water pace; the evening one also lists micronutrient gaps)</span></legend>
+        <div class="time-row">${[0, 1, 2].map(i => ti('check' + i, rs.checkins[i])).join('')}</div>
+      </fieldset>
+      <p class="span-2 small perm">${permText}</p>
+      <div class="span-2 row-actions">
+        <button class="btn btn-primary" type="submit">Save reminders</button>
+        <button class="btn btn-ghost" type="button" data-action="test-notif">Send a test</button>
+      </div>
+      <p class="span-2 muted small">Reminders fire while NutriTrack is open or running in the background. Install it to your home screen for the most reliable alerts (on iPhone: Share → Add to Home Screen, iOS 16.4+). A fully closed web app can't wake itself; that would need a push server, which is planned.</p>
+    </form>
+  </section>`;
+}
+
 function viewFoods() {
   const s = store.get();
   const list = s.customFoods.map(f => {
@@ -380,6 +449,7 @@ function viewProfile() {
         </tbody></table></div>`;
       })()}
     </section>
+    ${viewReminders()}
     ${viewTrainingCard(t)}
     <section class="card">
       <h3>Your data</h3>
@@ -615,6 +685,16 @@ document.addEventListener('click', e => {
       render();
     }
   }
+  else if (a === 'goto-reminders') { ui.view = 'profile'; render(); document.getElementById('reminders')?.scrollIntoView({ behavior: 'smooth' }); }
+  else if (a === 'test-notif') {
+    (async () => {
+      if (notifSupport() === 'default') await requestNotifications();
+      const shown = await showNotification({ title: '🌱 NutriTrack', body: 'Reminders are working. You\'ll get check-ins like this through the day.', key: 'test' });
+      if (!shown) banner('🌱 Test reminder: system notifications aren\'t available here, so reminders will appear like this inside the app.');
+      render(); document.getElementById('reminders')?.scrollIntoView();
+    })();
+  }
+  else if (a === 'dismiss-banner') el.closest('.banner-item')?.remove();
   else if (a === 'export') {
     const blob = new Blob([store.exportJSON()], { type: 'application/json' });
     const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `nutritrack-${dateKey(new Date())}.json` });
@@ -650,6 +730,24 @@ document.addEventListener('submit', e => {
   const form = e.target;
   const num = name => { const v = parseFloat(form[name]?.value); return isNaN(v) ? 0 : v; };
   const opt = name => { const v = parseFloat(form[name]?.value); return isNaN(v) || v <= 0 ? undefined : v; };
+
+  if (form.id === 'reminders-form') {
+    const enabled = form.enabled.checked;
+    store.update(s => {
+      s.schedule = { wake: form.wake.value, sleep: form.sleep.value, breakfast: form.breakfast.value, lunch: form.lunch.value, dinner: form.dinner.value };
+      s.reminders = {
+        enabled, supplements: form.supplements.checked, water: form.water.checked, waterEveryH: +form.waterEveryH.value,
+        checkins: [0, 1, 2].map(i => form['check' + i].value).filter(Boolean).sort(),
+      };
+    });
+    (async () => {
+      if (enabled && notifSupport() === 'default') await requestNotifications();
+      render(); document.getElementById('reminders')?.scrollIntoView();
+      toast(enabled ? 'Reminders on' : 'Reminders saved');
+      tick();
+    })();
+    return;
+  }
 
   if (form.id === 'profile-form') {
     const imp = form.units.value === 'imperial';
@@ -709,6 +807,47 @@ document.addEventListener('submit', e => {
   }
 });
 
+// ---- Reminder loop ----
+// In-app reminders stack (newest on top) until dismissed or ~30 s pass.
+function banner(text) {
+  const el = $('#banner');
+  const item = document.createElement('div');
+  item.className = 'banner-item';
+  item.innerHTML = `<span>${esc(text)}</span><button class="icon-btn" data-action="dismiss-banner" aria-label="Dismiss">✕</button>`;
+  el.prepend(item);
+  while (el.children.length > 4) el.lastChild.remove();
+  setTimeout(() => item.remove(), 30000);
+}
+
+async function tick() {
+  const s = store.get();
+  const rs = reminderSettings();
+  if (!s.profile || !rs.enabled) return;
+  const today = dateKey(new Date());
+  const t = targetsFor(today);
+  const { day, totals, waterMl } = dayTotals(today);
+  const sent = new Set(day.notified ?? []);
+  const events = dueEvents({
+    settings: rs, sched: schedule(), nowMin: nowMin(), supps: s.supplements, taken: day.supps ?? [],
+    targets: t, totals, waterMl, foods: allFoods(), waterFmt: fmtWater,
+  }).filter(e => !sent.has(e.key));
+  for (const ev of events) {
+    store.update(st => { const d = store.ensureDay(st, today); (d.notified ??= []).push(ev.key); });
+    const shown = await showNotification(ev);
+    if (!shown || document.visibilityState === 'visible') banner(`${ev.title}: ${ev.body}`);
+  }
+}
+
+// Keep the Today view's pace current, without interrupting typing or an open dialog.
+function refreshIfIdle() {
+  const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  if (ui.view === 'today' && !ui.modal && !typing) render();
+}
+
+setInterval(() => { tick(); refreshIfIdle(); }, 60_000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); refreshIfIdle(); } });
+registerSW();
+
 function toast(msg) {
   const el = $('#toast');
   el.textContent = msg; el.classList.add('show');
@@ -716,3 +855,4 @@ function toast(msg) {
 }
 
 render();
+tick();
