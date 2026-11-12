@@ -4,7 +4,7 @@ const KEY = 'nutritrack.v1';
 const blank = () => ({
   version: 1,
   profile: null,          // { sex, age, heightCm, weightKg, activity, goal, proteinPerKg, fatPct, overrides }
-  units: 'imperial',      // 'imperial' | 'metric' (display only; stored metric)
+  units: 'metric',        // 'metric' | 'imperial' (display only; always stored metric)
   customFoods: [],        // { id, name, category, servings, per100, source:'custom' }
   logs: {},               // { 'YYYY-MM-DD': { entries: [...] } }
   recents: [],            // food ids, most recent first

@@ -12,14 +12,14 @@ function f(id, name, category, servings, [kcal, protein, carbs, fat, fiber, suga
 
 export const FOODS = [
   // Protein
-  f('chicken-breast', 'Chicken breast, cooked', 'Protein', [{ label: '1 breast (172 g)', g: 172 }, { label: '3 oz', g: 85 }], [165, 31, 0, 3.6, 0, 0], [74, 256, 15, 1.0, 29, 1.0, 6, 0, 0.1, 0.3, 0.3, 0.3, 4]),
+  f('chicken-breast', 'Chicken breast, cooked', 'Protein', [{ label: '1 breast (172 g)', g: 172 }, { label: '1 portion (85 g)', g: 85 }], [165, 31, 0, 3.6, 0, 0], [74, 256, 15, 1.0, 29, 1.0, 6, 0, 0.1, 0.3, 0.3, 0.3, 4]),
   f('egg', 'Egg, whole', 'Protein', [{ label: '1 large egg', g: 50 }], [143, 12.6, 0.7, 9.5, 0, 0.4], [142, 138, 56, 1.75, 12, 1.3, 160, 0, 2.0, 1.05, 0.3, 0.89, 47]),
   f('egg-white', 'Egg white', 'Protein', [{ label: '1 large white', g: 33 }], [52, 10.9, 0.7, 0.2, 0, 0.7], [166, 163, 7, 0.08, 11, 0.03, 0, 0, 0, 0, 0, 0.09, 4]),
-  f('salmon', 'Salmon, Atlantic, cooked', 'Protein', [{ label: '1 fillet (154 g)', g: 154 }, { label: '3 oz', g: 85 }], [206, 22.1, 0, 12.4, 0, 0], [61, 384, 15, 0.34, 30, 0.43, 69, 3.7, 13.1, 1.1, 0.5, 2.8, 34]),
+  f('salmon', 'Salmon, Atlantic, cooked', 'Protein', [{ label: '1 fillet (154 g)', g: 154 }, { label: '1 portion (85 g)', g: 85 }], [206, 22.1, 0, 12.4, 0, 0], [61, 384, 15, 0.34, 30, 0.43, 69, 3.7, 13.1, 1.1, 0.5, 2.8, 34]),
   f('tuna-canned', 'Tuna, canned in water', 'Protein', [{ label: '1 can drained (142 g)', g: 142 }], [116, 25.5, 0, 0.8, 0, 0], [247, 237, 11, 1.5, 27, 0.7, 17, 0, 1.7, 0.33, 0, 2.99, 4]),
-  f('beef-90', 'Ground beef 90% lean, cooked', 'Protein', [{ label: '4 oz patty (113 g)', g: 113 }, { label: '3 oz', g: 85 }], [217, 26.1, 0, 11.7, 0, 0], [76, 370, 12, 2.7, 22, 6.3, 0, 0, 0.1, 0.4, 1.2, 2.5, 9]),
-  f('pork-loin', 'Pork loin, cooked', 'Protein', [{ label: '3 oz', g: 85 }], [196, 27.3, 0, 8.9, 0, 0], [60, 390, 20, 0.9, 28, 2.6, 2, 0.6, 0.6, 0.2, 0, 0.7, 2]),
-  f('shrimp', 'Shrimp, cooked', 'Protein', [{ label: '3 oz', g: 85 }], [99, 24, 0.2, 0.3, 0, 0], [111, 259, 70, 0.5, 39, 1.6, 0, 0, 0, 1.4, 0, 1.1, 3]),
+  f('beef-90', 'Ground beef 90% lean, cooked', 'Protein', [{ label: '1 patty (113 g)', g: 113 }, { label: '1 portion (85 g)', g: 85 }], [217, 26.1, 0, 11.7, 0, 0], [76, 370, 12, 2.7, 22, 6.3, 0, 0, 0.1, 0.4, 1.2, 2.5, 9]),
+  f('pork-loin', 'Pork loin, cooked', 'Protein', [{ label: '1 portion (85 g)', g: 85 }], [196, 27.3, 0, 8.9, 0, 0], [60, 390, 20, 0.9, 28, 2.6, 2, 0.6, 0.6, 0.2, 0, 0.7, 2]),
+  f('shrimp', 'Shrimp, cooked', 'Protein', [{ label: '1 portion (85 g)', g: 85 }], [99, 24, 0.2, 0.3, 0, 0], [111, 259, 70, 0.5, 39, 1.6, 0, 0, 0, 1.4, 0, 1.1, 3]),
   f('tofu', 'Tofu, firm (calcium-set)', 'Protein', [{ label: '½ cup (126 g)', g: 126 }], [144, 17.3, 2.8, 8.7, 2.3, 0.6], [14, 237, 683, 2.7, 58, 1.6, 0, 0.2, 0, 0, 2.4, 0, 29]),
   f('whey', 'Whey protein powder (generic, check label)', 'Protein', [{ label: '1 scoop (30 g)', g: 30 }], [400, 80, 8, 6, 0, 4], [300, 500, 450, 1, 100, 2, 0, 0, 0, 0, 0, 1, 0]),
 
@@ -61,11 +61,11 @@ export const FOODS = [
   f('oj', 'Orange juice', 'Fruit', [{ label: '1 cup (248 g)', g: 248 }], [45, 0.7, 10.4, 0.2, 0.2, 8.4], [1, 200, 11, 0.2, 11, 0.05, 10, 50, 0, 0.04, 0.1, 0, 30]),
 
   // Fats, nuts, seeds
-  f('almonds', 'Almonds', 'Nuts & fats', [{ label: '1 oz (28 g, ~23 nuts)', g: 28 }], [579, 21.2, 21.6, 49.9, 12.5, 4.4], [1, 733, 269, 3.7, 270, 3.1, 0, 0, 0, 25.6, 0, 0, 44]),
+  f('almonds', 'Almonds', 'Nuts & fats', [{ label: '1 handful (28 g, ~23 nuts)', g: 28 }], [579, 21.2, 21.6, 49.9, 12.5, 4.4], [1, 733, 269, 3.7, 270, 3.1, 0, 0, 0, 25.6, 0, 0, 44]),
   f('peanut-butter', 'Peanut butter', 'Nuts & fats', [{ label: '1 tbsp (16 g)', g: 16 }, { label: '2 tbsp (32 g)', g: 32 }], [588, 25.1, 20, 50.4, 6.0, 9.2], [429, 649, 49, 1.9, 154, 2.9, 0, 0, 0, 9.0, 0.3, 0, 87]),
   f('olive-oil', 'Olive oil', 'Nuts & fats', [{ label: '1 tbsp (13.5 g)', g: 13.5 }, { label: '1 tsp (4.5 g)', g: 4.5 }], [884, 0, 0, 100, 0, 0], [2, 1, 1, 0.56, 0, 0, 0, 0, 0, 14.4, 60.2, 0, 0]),
   f('chia', 'Chia seeds', 'Nuts & fats', [{ label: '1 tbsp (12 g)', g: 12 }], [486, 16.5, 42.1, 30.7, 34.4, 0], [16, 407, 631, 7.7, 335, 4.6, 0, 1.6, 0, 0.5, 0, 0, 49]),
-  f('dark-chocolate', 'Dark chocolate 70–85%', 'Nuts & fats', [{ label: '1 square (10 g)', g: 10 }, { label: '1 oz (28 g)', g: 28 }], [598, 7.8, 45.9, 42.6, 10.9, 24], [20, 715, 73, 11.9, 228, 3.3, 2, 0, 0, 0.6, 7.3, 0.3, 0]),
+  f('dark-chocolate', 'Dark chocolate 70–85%', 'Nuts & fats', [{ label: '1 square (10 g)', g: 10 }, { label: '3 squares (28 g)', g: 28 }], [598, 7.8, 45.9, 42.6, 10.9, 24], [20, 715, 73, 11.9, 228, 3.3, 2, 0, 0, 0.6, 7.3, 0.3, 0]),
 ];
 
 export const FOOD_CATEGORIES = [...new Set(FOODS.map(x => x.category))];

@@ -31,7 +31,7 @@ const isTrainingDay = key => {
 const extrasNow = () => ({ creatineG: dailyCreatine(store.get().supplements) });
 const targetsFor = key => dayTargets(store.get().profile, isTrainingDay(key), extrasNow());
 const imperial = () => store.get().units === 'imperial';
-const fmtWater = ml => imperial() ? `${Math.round(ml / ML_PER_OZ)} oz` : ml >= 1000 ? `${(ml / 1000).toFixed(2).replace(/0$/, '')} L` : `${ml} ml`;
+const fmtWater = ml => imperial() ? `${Math.round(ml / ML_PER_OZ)} oz` : ml >= 1000 ? `${Number((ml / 1000).toFixed(2))} L` : `${ml} ml`;
 const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const fmtTime = hhmm => { const [h, m] = hhmm.split(':').map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
 
@@ -174,7 +174,7 @@ function viewWater(t, day) {
       ${t.water.training ? `<li><span>Training day</span><span class="num">+${fmtWater(t.water.training)}</span></li>` : ''}
       ${t.water.creatine ? `<li><span>Creatine <span class="muted">(${fmt(t.water.creatineG)} g/day${t.water.creatineG >= 15 ? ', loading' : ''})</span></span><span class="num">+${fmtWater(t.water.creatine)}</span></li>` : ''}
     </ul>
-    ${t.dayType === 'training' ? '<p class="muted small">During exercise, drink about 400–800 ml (14–27 oz) per hour, more in heat.</p>' : ''}
+    ${t.dayType === 'training' ? `<p class="muted small">During exercise, drink about ${imperial() ? '14–27 oz' : '400–800 ml'} per hour, more in heat.</p>` : ''}
   </section>`;
 }
 
@@ -324,8 +324,8 @@ function viewProfile() {
     ${s.profile ? '' : '<p class="intro">Tell us about yourself to calculate calorie, macro and micronutrient targets. Everything is stored only on this device.</p>'}
     <form id="profile-form" class="card form-grid">
       <fieldset class="span-2 seg"><legend>Units</legend>
-        <label><input type="radio" name="units" value="imperial" ${imp ? 'checked' : ''}> lb / ft</label>
-        <label><input type="radio" name="units" value="metric" ${!imp ? 'checked' : ''}> kg / cm</label>
+        <label><input type="radio" name="units" value="metric" ${!imp ? 'checked' : ''}> Metric <span class="muted small">kg · cm · ml</span></label>
+        <label><input type="radio" name="units" value="imperial" ${imp ? 'checked' : ''}> Imperial <span class="muted small">lb · ft · oz</span></label>
       </fieldset>
       <fieldset class="span-2 seg"><legend>Sex <span class="muted small">(for BMR & DRIs)</span></legend>
         <label><input type="radio" name="sex" value="male" ${p.sex === 'male' ? 'checked' : ''}> Male</label>
