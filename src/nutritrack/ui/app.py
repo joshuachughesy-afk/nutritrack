@@ -36,18 +36,25 @@ class App:
         )
         page.add(ft.SafeArea(content=ft.Container(content=self.body, padding=ft.Padding.symmetric(horizontal=16, vertical=12),
                                                   expand=True), expand=True))
+        from .notify import Notifier
+
+        self.notifier = Notifier(self)
         self.svc.finalize_garden()
         self.render()
+        page.run_task(self.notifier.loop)
 
     # ---------- navigation ----------
     def _on_nav(self, e: ft.Event) -> None:
         self.go(NAV[e.control.selected_index][0])
 
     def go(self, view: str, date: str | None = None) -> None:
+        changed = view != self.view or (date and date != self.date)
         self.view = view
         if date:
             self.date = date
         self.render()
+        if changed:  # each screen opens at the top
+            self.page.run_task(self.body.scroll_to, offset=0)
 
     def render(self) -> None:
         from . import foods, garden, profile, supps, today  # local import avoids import cycles
@@ -59,10 +66,21 @@ class App:
                    "profile": profile.build}[self.view]
         self.body.controls = builder(self)
         self.page.update()
+        if hasattr(self, "notifier"):
+            self.notifier.request_sync()
 
     # ---------- feedback ----------
     def toast(self, msg: str) -> None:
         self.page.show_dialog(ft.SnackBar(content=ft.Text(msg), duration=2500, behavior=ft.SnackBarBehavior.FLOATING))
+
+    def banner(self, title: str, body: str, payload: str = "") -> None:
+        """An in-app reminder. Dose reminders get a one-tap "Mark taken"."""
+        is_dose = payload.startswith("dose:")
+        self.page.show_dialog(ft.SnackBar(
+            content=ft.Column([ft.Text(title, weight=ft.FontWeight.W_700), ft.Text(body)], spacing=2, tight=True),
+            action="Mark taken" if is_dose else None,
+            on_action=(lambda _: self.notifier.mark_from_payload(payload)) if is_dose else None,
+            duration=12000, show_close_icon=True, behavior=ft.SnackBarBehavior.FLOATING))
 
     def confirm(self, title: str, text: str, on_yes, yes_label: str = "Delete") -> None:
         def yes(_):

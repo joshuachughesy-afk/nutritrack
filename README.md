@@ -45,11 +45,11 @@ pytest -q
 | Stage | Scope | Status |
 |---|---|---|
 | **A. Core + logging** | All nutrition science, training database, foods, supplements, pacing, garden scoring and reminder rules ported to tested Python; SQLite store; Today screen (date nav, training/rest toggle, calorie ring, carb-first macro bars, meals with copy-yesterday, micronutrients with the supplement share), Add-food sheet (search, recents, servings or grams, live preview, quick add), custom foods, Profile with onboarding, carb-cycling table and training recommendations | ✅ Done |
-| **B. Water, supplements, pace, reminders, garden** | Water card with creatine adjustment; supplement stack, checklist, upper-limit and timing warnings; pace check; **OS-scheduled notifications** through `flet-notifications` (they fire even when the app is closed, with a "Mark taken" action); garden, trees, streaks and levels; backup export and import | ⏳ Next |
-| **C. Extended data** | Online food search (Open Food Facts / USDA), barcode scanning, weekly trends with `flet-charts`, weight log and adaptive TDEE | Planned |
+| **B. Water, supplements, pace, reminders, garden** | Water card (35 ml/kg + training + creatine, with breakdown); supplement checklist on Today with "due" flags; Supplements screen (stack, pause/edit/remove, timing tips, upper-limit and iron/calcium conflict checks, daily totals, 15 templates, editor with creatine field); pace check with "expected by now" markers and evening micronutrient gaps; **OS-scheduled notifications** through `flet-notifications` on Android/iOS/macOS/Windows (daily supplement reminders with a **Mark taken** action, live check-ins, water nudges; re-synced on every change), with an in-app reminder loop on web and Linux; reminder settings and test; tree card with growth tips and streak; Garden screen (level, stats, 8-week forest, seed picker, scoring rules); backup export and import | ✅ Done |
+| **C. Extended data** | Online food search (Open Food Facts / USDA), barcode scanning, weekly trends with `flet-charts`, weight log and adaptive TDEE | ⏳ Next |
 
-The original HTML/JavaScript version is kept in [`legacy-web/`](legacy-web/) as the reference implementation until
-the Python app reaches full parity.
+The Python app now does everything the original HTML/JavaScript version did. That version is kept in
+[`legacy-web/`](legacy-web/) only because the parity tests generate their reference values from it.
 
 ## Structure
 
@@ -66,7 +66,7 @@ src/nutritrack/core/             Pure logic, no UI. Everything here is unit-test
   reminders.py                   Reminder rules + OS notification plan
 src/nutritrack/store.py          SQLite storage
 src/nutritrack/service.py        App logic shared by the screens
-src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden)
+src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden) + notify.py (reminders)
 tests/                           pytest suite
 legacy-web/                      Original HTML/JS app (reference)
 ```

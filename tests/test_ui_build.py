@@ -25,6 +25,13 @@ class FakeApp:
     def __init__(self, store):
         self.page, self.store, self.svc = FakePage(), store, Service(store)
         self.date, self.view, self.rendered = today_key(), "today", 0
+
+        class _N:
+            can_schedule = False
+            async def request_permission(self): return False
+            async def test(self): pass
+            def mark_from_payload(self, p): pass
+        self.notifier = _N()
     def render(self): self.rendered += 1
     def go(self, view, date=None): self.view = view
     def toast(self, msg): self.last_toast = msg
@@ -45,6 +52,20 @@ def app(tmp_path):
 def test_screen_builds(app, module):
     controls = module.build(app)
     assert controls and all(isinstance(c, ft.Control) for c in controls)
+
+
+def test_supplement_editor_builds(app):
+    supps._new(app, supps.SUPP_TEMPLATES[2])
+    assert app.supp_edit == "new" and supps.build(app)
+    app.supp_edit = app.store.supplements()[0].id
+    assert supps.build(app)
+
+
+def test_today_with_history_and_past_day(app):
+    from nutritrack.service import shift
+    app.store.add_water(app.date, 500)
+    app.date = shift(app.date, -1)
+    assert today.build(app)
 
 
 def test_onboarding_builds_without_profile(tmp_path):

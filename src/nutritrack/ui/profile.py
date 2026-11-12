@@ -131,7 +131,7 @@ def build(app: "App") -> list[ft.Control]:
                             "Everything is stored only on this device.", 14))
     out.append(form)
     if existing:
-        out += _targets(app, p) + [_training_card(app, p), _data_card(app)]
+        out += _targets(app, p) + [_reminders_card(app), _training_card(app, p), _data_card(app)]
     return out
 
 
@@ -190,7 +190,8 @@ def _training_card(app: "App", p: Profile) -> ft.Control:
         ft.DataCell(ft.Text(f"{x.protein[0]:g}–{x.protein[1]:g}")), ft.DataCell(ft.Text(f"{x.fat[0]:g}–{x.fat[1]:g}")),
         ft.DataCell(th.chip(x.emphasis, th.emphasis_color(x.emphasis)))]) for k, x in TRAINING.items()]
     return th.card(
-        th.heading("Macro recommendations", th.chip(f"{tr.name} · {tr.emphasis}", th.emphasis_color(tr.emphasis))),
+        th.heading("Macro recommendations"),
+        ft.Row([th.chip(f"{tr.name} · {tr.emphasis}", th.emphasis_color(tr.emphasis))], wrap=True),
         ft.Row([ft.DataTable(columns=[ft.DataColumn(ft.Text(h)) for h in ("", "Target", "g/kg", "Recommended", "% kcal", "")],
                              rows=rows, column_spacing=14, horizontal_margin=4)], scroll=ft.ScrollMode.AUTO),
         ft.Text(f"Fueling tips for {tr.name.lower()}", weight=ft.FontWeight.W_600, size=14),
@@ -206,16 +207,120 @@ def _training_card(app: "App", p: Profile) -> ft.Control:
     )
 
 
+def _hhmm(v: str) -> str | None:
+    v = (v or "").strip()
+    try:
+        h, m = v.split(":")
+        if 0 <= int(h) < 24 and 0 <= int(m) < 60 and len(m) == 2:
+            return f"{int(h):02d}:{m}"
+    except ValueError:
+        pass
+    return None
+
+
+def _reminders_card(app: "App") -> ft.Control:
+    sched, rs = app.store.schedule(), app.store.reminders()
+    notifier = app.notifier
+
+    def tf(label, value):
+        return ft.TextField(label=label, value=value or "", hint_text="HH:MM", dense=True, border_radius=10, expand=True,
+                            keyboard_type=ft.KeyboardType.DATETIME)
+
+    wake, sleep = tf("Wake up", sched["wake"]), tf("Bedtime", sched["sleep"])
+    meals = {k: tf(k.title(), sched[k]) for k in ("breakfast", "lunch", "dinner")}
+    enabled = ft.Switch(label="Send me reminders", value=rs["enabled"])
+    supps = ft.Checkbox(label="Supplement doses at their scheduled times", value=rs["supplements"])
+    water = ft.Checkbox(label="Water nudges when I'm behind", value=rs["water"])
+    every = ft.Dropdown(label="Check water every", value=str(rs["water_every_h"]).rstrip("0").rstrip("."), dense=True, width=170,
+                        border_radius=10, options=[ft.DropdownOption(key=k, text=f"{k} h") for k in ("1", "1.5", "2", "3")])
+    checks = [tf(f"Check-in {i + 1}", rs["checkins"][i] if i < len(rs["checkins"]) else "") for i in range(3)]
+    if notifier.can_schedule:
+        how = "Reminders are scheduled with your phone's system, so they arrive even when NutriTrack is closed."
+    else:
+        how = ("Here, reminders appear while NutriTrack is open. Install the app on your phone (see README) so the "
+               "system can deliver them even when it's closed.")
+
+    async def save(_):
+        fields = [wake, sleep, *meals.values()]
+        bad = False
+        for f in fields:
+            f.error = None if _hhmm(f.value) else "Use HH:MM"
+            bad |= f.error is not None
+        cis = []
+        for f in checks:
+            f.error = None
+            if (f.value or "").strip():
+                v = _hhmm(f.value)
+                if v:
+                    cis.append(v)
+                else:
+                    f.error, bad = "Use HH:MM", True
+        if bad:
+            app.page.update(); return
+        app.store.set("schedule", {"wake": _hhmm(wake.value), "sleep": _hhmm(sleep.value),
+                                   **{k: _hhmm(f.value) for k, f in meals.items()}})
+        app.store.set("reminders", {"enabled": bool(enabled.value), "supplements": bool(supps.value), "water": bool(water.value),
+                                    "water_every_h": float(every.value or 2), "checkins": sorted(cis)})
+        if enabled.value and not await notifier.request_permission() and notifier.can_schedule:
+            app.toast("Notifications are blocked. Allow them in your phone's settings.")
+        app.render()
+        app.toast("Reminders on" if enabled.value else "Reminders saved")
+
+    return th.card(
+        th.heading("Schedule & reminders"),
+        th.muted("Your meal times set the pace: about 30 minutes after lunch you'd expect about 55% of the day's food. Water "
+                 "spreads evenly until an hour before bed.", 12),
+        ft.Row([wake, sleep], spacing=10), ft.Row(list(meals.values()), spacing=10),
+        enabled, supps, ft.Row([water, every], wrap=True),
+        th.muted("Daily check-ins: macro and water pace. The evening one also lists micronutrient gaps.", 12),
+        ft.Row(checks, spacing=8),
+        th.muted(how, 12),
+        ft.Row([ft.FilledButton("Save reminders", icon=ft.Icons.NOTIFICATIONS_ACTIVE, on_click=save),
+                ft.TextButton("Send a test", on_click=lambda _: app.page.run_task(notifier.test))], wrap=True),
+    )
+
+
 def _data_card(app: "App") -> ft.Control:
     def erase():
         app.store.reset()
         app.go("profile")
         app.toast("All data erased")
 
+    async def export(_):
+        from datetime import date
+        picker = ft.FilePicker()
+        try:
+            path = await picker.save_file(dialog_title="Save NutriTrack backup", file_name=f"nutritrack-{date.today()}.json",
+                                          allowed_extensions=["json"], src_bytes=app.store.export_json().encode())
+            desktop = str(getattr(app.page.platform, "value", "")).lower() in ("windows", "macos", "linux")
+            if path and desktop and not app.page.web:  # phones and web save src_bytes themselves
+                from pathlib import Path
+                Path(path).write_text(app.store.export_json())
+            if path or app.page.web:
+                app.toast("Backup saved")
+        except Exception as ex:
+            app.toast(f"Export failed: {ex}")
+
+    async def import_(_):
+        picker = ft.FilePicker()
+        try:
+            files = await picker.pick_files(dialog_title="Choose a NutriTrack backup", allowed_extensions=["json"], with_data=True)
+            if not files:
+                return
+            f = files[0]
+            data = f.bytes if f.bytes else open(f.path, "rb").read()
+            app.store.import_json(data.decode())
+            app.go("today")
+            app.toast("Backup restored")
+        except Exception as ex:
+            app.toast(f"Import failed: {ex}")
+
     return th.card(
         th.heading("Your data"),
         th.muted(f"Stored on this device in {app.store.path}", 12),
-        ft.Row([ft.OutlinedButton("Erase all data", icon=ft.Icons.DELETE_FOREVER,
+        ft.Row([ft.OutlinedButton("Export backup", icon=ft.Icons.DOWNLOAD, on_click=export),
+                ft.OutlinedButton("Import backup", icon=ft.Icons.UPLOAD, on_click=import_),
+                ft.OutlinedButton("Erase all data", icon=ft.Icons.DELETE_FOREVER,
                                   on_click=lambda _: app.confirm("Erase all data?", "This cannot be undone.", erase,
                                                                  "Erase"))], wrap=True),
     )

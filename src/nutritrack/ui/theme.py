@@ -30,8 +30,10 @@ def card(*controls: ft.Control, padding: int = 16, spacing: int = 10, bgcolor=No
     )
 
 
-def heading(text: str, trailing: ft.Control | None = None, size: int = 17) -> ft.Control:
-    title = ft.Text(text, size=size, weight=ft.FontWeight.W_600)
+def heading(text: str, trailing: ft.Control | None = None, size: int = 17, icon=None, icon_color=None) -> ft.Control:
+    title: ft.Control = ft.Text(text, size=size, weight=ft.FontWeight.W_600)
+    if icon is not None:
+        title = ft.Row([ft.Icon(icon, size=size + 3, color=icon_color or ACCENT), title], spacing=6, tight=True)
     if trailing is None:
         return title
     return ft.Row([title, trailing], alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -79,3 +81,8 @@ def parse_num(v: str | None, default: float = 0.0) -> float:
         return float(str(v).replace(",", ".").strip())
     except (TypeError, ValueError):
         return default
+
+
+def icon_text(icon, text: str, color=None, size: int = 13, bold: bool = False) -> ft.Control:
+    return ft.Row([ft.Icon(icon, size=size + 3, color=color), ft.Text(text, size=size, weight=ft.FontWeight.W_600 if bold else None)],
+                  spacing=4, tight=True)
