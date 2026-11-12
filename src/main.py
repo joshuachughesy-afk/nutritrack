@@ -17,6 +17,6 @@ def main(page: ft.Page) -> None:
 
 if __name__ == "__main__":
     if os.getenv("NUTRITRACK_WEB"):  # headless/dev: serve in a browser on a fixed port
-        ft.run(main, view=ft.AppView.WEB_BROWSER, port=int(os.getenv("PORT", "8551")), no_cdn=True)
+        ft.run(main, view=ft.AppView.WEB_BROWSER, port=int(os.getenv("PORT", "8551")), no_cdn=True, assets_dir="assets")
     else:
-        ft.run(main)
+        ft.run(main, assets_dir="assets")

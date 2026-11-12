@@ -28,6 +28,20 @@ During development you can also scan a QR code with the **Flet app** on your pho
 Your data lives in a SQLite file in the app's private storage (`~/.nutritrack/nutritrack.db` on desktop), which you
 can analyse directly with pandas or any SQLite tool.
 
+## Design
+
+* **3D low-poly trees.** `core/render3d.py` is a small renderer in pure Python with Pillow: real meshes (jittered
+  icosphere canopies, tapered trunks, stacked cones for pines, blossoms and fruit) on a floating grass island,
+  flat-shaded with a key light and sky fill, painted back to front and supersampled. Six species × six growth stages.
+  Drag your tree sideways on Today or Garden to turn it on its turntable. Pre-rendered PNGs in `src/assets/trees/` are
+  used if Pillow isn't available on a device.
+* **Motion.** Cards fade and rise in, staggered, when a screen opens. Progress bars, the gradient calorie ring and the
+  water level animate from their previous value when you log something. When your tree reaches a new stage it pops,
+  spins a full turn and throws confetti, with haptic feedback on phones.
+* **Look.** Plus Jakarta Sans (SIL OFL), a leaf-green palette with a warm off-white light theme and a deep-forest dark
+  theme (System / Light / Dark in Profile → Appearance), softly shadowed cards, a sky-gradient tree card and shimmer
+  placeholders while online searches load.
+
 ## Online food data
 
 * **Open Food Facts**: free, no key. Brand search and barcodes. Crowd-sourced, so check odd values against the label.
@@ -78,9 +92,13 @@ src/nutritrack/core/             Pure logic, no UI. Everything here is unit-test
   online.py                      Open Food Facts + USDA clients and parsers
   barcode.py                     Barcode decoding from photos (zxing-cpp)
   trends.py                      Weight trend, adaptive TDEE, period summaries
+  render3d.py                    Low-poly 3D tree renderer (Pillow)
 src/nutritrack/store.py          SQLite storage
 src/nutritrack/service.py        App logic shared by the screens
-src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden, trends) + notify.py (reminders)
+src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden, trends)
+  theme.py · motion.py           Design system; animation, haptics and confetti
+  tree_view.py · notify.py       Interactive 3D tree; reminders
+src/assets/                      Fonts (Plus Jakarta Sans) and pre-rendered trees
 tests/                           pytest suite
 legacy-web/                      Original HTML/JS app (reference)
 ```

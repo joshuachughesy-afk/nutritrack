@@ -107,7 +107,7 @@ def _adaptive_block(app: "App") -> ft.Control:
         text = f"Adaptive TDEE: {a.reason} Until then targets use the formula ({fmt(a.formula)} kcal/day)."
     return ft.Container(ft.Column([
         ft.Row([ft.Icon(ft.Icons.AUTO_GRAPH, color=th.ACCENT, size=20),
-                ft.Text("Adaptive calorie target", weight=ft.FontWeight.W_600, size=14, expand=True),
+                ft.Text("Adaptive calorie target", font_family=th.FONT_SEMI, size=14, expand=True),
                 ft.Switch(value=p.use_adaptive, on_change=toggle)]),
         ft.Text(text, size=12),
         th.muted("It compares what you logged with how your weight trend moved, which works out what you actually burn. "
@@ -148,9 +148,9 @@ def _averages_card(app: "App", s) -> ft.Control:
     def row(label, value, target, unit, color):
         pct = value / target if target else 0
         return ft.Column([
-            ft.Row([th.dot(color), ft.Text(label, size=13, weight=ft.FontWeight.W_600, expand=True),
+            ft.Row([th.dot(color), ft.Text(label, size=13, font_family=th.FONT_SEMI, expand=True),
                     th.muted(f"{fmt(value)} / {fmt(target)} {unit}", 12),
-                    ft.Text(f"{round(pct * 100)}%", size=12, weight=ft.FontWeight.W_700, width=44, text_align=ft.TextAlign.RIGHT)]),
+                    ft.Text(f"{round(pct * 100)}%", size=12, font_family=th.FONT_BOLD, width=44, text_align=ft.TextAlign.RIGHT)]),
             th.bar(pct, color),
         ], spacing=4)
 
@@ -175,7 +175,7 @@ def _micro_card(s) -> ft.Control:
         status = "met" if v >= 1 else "mid" if v >= 0.7 else "low"
         rows.append(ft.Container(ft.Column([
             ft.Row([ft.Text(m.label, size=13, expand=True),
-                    ft.Text(f"{round(v * 100)}%", size=12, weight=ft.FontWeight.W_700, color=th.STATUS_COLORS[status])]),
+                    ft.Text(f"{round(v * 100)}%", size=12, font_family=th.FONT_BOLD, color=th.STATUS_COLORS[status])]),
             th.bar(v, th.STATUS_COLORS[status], height=6)], spacing=3), col={"xs": 12, "sm": 6}))
     low = [MICRO_BY_KEY[k].label for k in s.consistently_low]
     note = (f"Consistently low: {', '.join(low)}. Check the evening pace check for foods that fill these, or ask a "

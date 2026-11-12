@@ -71,4 +71,4 @@ def build(app: "App") -> list[ft.Control]:
     saved = th.card(th.heading(f"Saved ({len(custom)})"),
                     *(rows or [th.muted(f"No custom foods yet. The built-in list has {len(FOODS)} common foods with "
                                         "full micronutrient data.", 13)]))
-    return [ft.Text("My foods", size=22, weight=ft.FontWeight.W_700), form, saved]
+    return [th.title("My foods"), form, saved]

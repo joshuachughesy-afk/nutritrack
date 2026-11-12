@@ -177,3 +177,31 @@ def test_remember_online_food(svc):
     f = online.parse_off_product({"code": "0038000016912", **load("off_product_special_k.json")["product"]})
     svc.remember_food(f)
     assert svc.find_food("off-0038000016912").source == "OFF"
+
+
+# ---------- 3D trees ----------
+def test_render3d_all_species_and_turntable():
+    from nutritrack.core import render3d
+    from nutritrack.core.garden import SPECIES
+    if not render3d.available():
+        pytest.skip("Pillow not installed")
+    assert set(SPECIES) == set(render3d.SPECIES_COLORS)
+    sizes = set()
+    for sp in SPECIES:
+        for stage in range(6):
+            png = render3d.tree_png(sp, stage, 30, 96)
+            assert png[:8] == b"\x89PNG\r\n\x1a\n"
+            sizes.add(len(render3d.tree_mesh(sp, stage)))
+    assert len(sizes) > 6  # stages and species really differ
+    # The turntable shows genuinely different views
+    assert render3d.tree_png("cherry", 5, 0, 96) != render3d.tree_png("cherry", 5, 90, 96)
+    # Bigger stages have more geometry than seeds
+    assert len(render3d.tree_mesh("oak", 5)) > len(render3d.tree_mesh("oak", 0))
+
+
+def test_bundled_tree_assets_exist():
+    from nutritrack.core.garden import SPECIES
+    root = Path(__file__).parent.parent / "src" / "assets" / "trees"
+    for sp in SPECIES:
+        for stage in range(6):
+            assert (root / f"{sp}_{stage}.png").stat().st_size > 1000

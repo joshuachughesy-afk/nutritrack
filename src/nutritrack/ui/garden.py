@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 import flet as ft
 
 from ..core.garden import SPECIES, STAGES, TREE_DAY, level_info, stage_for
-from ..core.trees import tree_svg
 from ..service import pretty_date, today_key
 from . import theme as th
+from .tree_view import TreeView, tree_src
 
 if TYPE_CHECKING:
     from .app import App
@@ -28,7 +28,7 @@ def build(app: "App") -> list[ft.Control]:
                                 selected=[tab], on_change=switch, show_selected_icon=False)
     if tab == "trends":
         from . import trends
-        return [ft.Text("Progress", size=22, weight=ft.FontWeight.W_700), toggle] + trends.build(app)
+        return [th.title("Progress"), toggle] + trends.build(app)
     return [toggle] + _garden(app)
 
 
@@ -41,14 +41,22 @@ def _garden(app: "App") -> list[ft.Control]:
     today = date.fromisoformat(today_key())
     next_species = min((s for s in SPECIES.values() if s.level > lv.level), key=lambda s: s.level, default=None)
 
+    today_score = scores.get(today.isoformat())
+    showcase = TreeView(svc.seed(), stage_for(today_score) if today_score is not None else 4, size=200,
+                        on_tap=lambda _: app.go("today", today_key()))
+    sky = ft.LinearGradient(begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER, colors=th.SKY[app.dark])
+    stage_card = th.card(ft.Column([
+        ft.Container(showcase.control, alignment=ft.Alignment.CENTER),
+        th.muted("Drag to turn · tap to open today", 11, text_align=ft.TextAlign.CENTER),
+    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2), gradient=sky, padding=10)
     hero = th.card(ft.Row([
         ft.Container(ft.Column([ft.Text("Level", size=11, color=ft.Colors.WHITE),
-                                ft.Text(str(lv.level), size=28, weight=ft.FontWeight.W_700, color=ft.Colors.WHITE)],
+                                ft.Text(str(lv.level), size=28, font_family=th.FONT_BOLD, color=ft.Colors.WHITE)],
                                spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
                      width=72, height=72, border_radius=36, alignment=ft.Alignment.CENTER,
                      gradient=ft.RadialGradient(colors=["#6fcf8f", th.ACCENT], center=ft.Alignment(-0.4, -0.4))),
         ft.Column([
-            ft.Row([ft.Text(f"{round(h.points):,} growth points", weight=ft.FontWeight.W_700, expand=True),
+            ft.Row([ft.Text(f"{round(h.points):,} growth points", font_family=th.FONT_BOLD, expand=True),
                     th.muted(f"{round(lv.next - h.points):,} to level {lv.level + 1}" if lv.next else "Max level", 12)]),
             th.bar(lv.progress, th.ACCENT, height=10),
             th.muted(f"Next unlock: {next_species.name} at level {next_species.level}" if next_species
@@ -58,7 +66,7 @@ def _garden(app: "App") -> list[ft.Control]:
 
     def stat(icon, value, label):
         ic, col = icon
-        return ft.Container(th.card(ft.Column([ft.Icon(ic, size=22, color=col), ft.Text(str(value), size=22, weight=ft.FontWeight.W_700),
+        return ft.Container(th.card(ft.Column([ft.Icon(ic, size=22, color=col), ft.Text(str(value), size=22, font_family=th.FONT_BOLD),
                                                th.muted(label, 12)], spacing=2,
                                               horizontal_alignment=ft.CrossAxisAlignment.CENTER), padding=10),
                             col={"xs": 6, "sm": 3})
@@ -81,7 +89,7 @@ def _garden(app: "App") -> list[ft.Control]:
         if d > today:
             content, bg, border = None, None, ft.Border.all(1, ft.Colors.OUTLINE_VARIANT)
         elif sc is not None:
-            content = ft.Image(src=tree_svg(stage_for(sc), svc.species_for(k)), fit=ft.BoxFit.CONTAIN)
+            content = ft.Image(src=tree_src(svc.species_for(k), stage_for(sc), 96), fit=ft.BoxFit.CONTAIN)
             bg, border = ft.Colors.with_opacity(0.10, "#8a6a4a"), ft.Border.all(2, th.ACCENT) if d == today else None
         else:
             content = ft.Icon(ft.Icons.SHIELD, size=14, color="#3d7be0") if mark == "shielded" else None
@@ -104,8 +112,9 @@ def _garden(app: "App") -> list[ft.Control]:
     for k, sp in SPECIES.items():
         locked = sp.level > lv.level
         seeds.append(ft.Container(ft.Column([
-            ft.Image(src=tree_svg(4, k, muted=locked), width=64, height=62),
-            ft.Text(sp.name, size=12, weight=ft.FontWeight.W_600, text_align=ft.TextAlign.CENTER),
+            ft.Image(src=tree_src(k, 4, 112), width=80, height=80, opacity=0.35 if locked else 1,
+                     color=ft.Colors.GREY if locked else None, color_blend_mode=ft.BlendMode.SATURATION if locked else None),
+            ft.Text(sp.name, size=12, font_family=th.FONT_SEMI, text_align=ft.TextAlign.CENTER),
             *([th.icon_text(ft.Icons.LOCK, f"Level {sp.level}", th.MUTED, size=11)] if locked else []),
         ], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER), col={"xs": 4, "sm": 2}, padding=8, border_radius=12,
             border=ft.Border.all(2 if k == seed else 1, th.ACCENT if k == seed else ft.Colors.OUTLINE_VARIANT),
@@ -122,10 +131,10 @@ def _garden(app: "App") -> list[ft.Control]:
              ("Supplements", "10", "doses taken (with no stack, the rest scales up to 100)")]
     how = th.card(
         th.heading("How your tree grows"),
-        *[ft.Row([ft.Text(a, weight=ft.FontWeight.W_600, size=13, width=110), ft.Text(b, size=13, width=50),
+        *[ft.Row([ft.Text(a, font_family=th.FONT_SEMI, size=13, width=110), ft.Text(b, size=13, width=50),
                   th.muted(c, 12, expand=True)], vertical_alignment=ft.CrossAxisAlignment.START) for a, b, c in rules],
         ft.Row([th.chip(f"{name} {lo}+", th.ACCENT) for lo, name, _ in STAGES], wrap=True, spacing=6),
         th.muted(f"A day of {TREE_DAY}+ points is a tree day and extends your streak. Every 7-day streak earns a shield "
                  "(hold up to 2) that covers one missed day, so a busy day doesn't wipe out your progress.", 12),
     )
-    return [ft.Text("Your garden", size=22, weight=ft.FontWeight.W_700), hero, stats, forest, seed_card, how]
+    return [th.title("Your garden"), stage_card, hero, stats, forest, seed_card, how]

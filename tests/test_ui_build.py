@@ -34,7 +34,10 @@ class FakeApp:
         self.notifier = _N()
     def render(self): self.rendered += 1
     def go(self, view, date=None): self.view = view
+    dark = False
     def toast(self, msg): self.last_toast = msg
+    def celebrate(self, msg, big=False): self.last_toast = msg
+    def set_theme_mode(self, mode): self.theme_mode = mode
     def confirm(self, title, text, on_yes, yes_label="Delete"): on_yes()
 
 

@@ -114,8 +114,8 @@ def build(app: "App") -> list[ft.Control]:
         ft.Row([age], spacing=10), metric_box, imperial_box,
         ft.Row([activity], spacing=10), ft.Row([goal], spacing=10),
         th.heading("Training"), ft.Row([training]), training_desc,
-        th.muted("Training load", 13, weight=ft.FontWeight.W_600), load, load_hint,
-        th.muted("Usual training days (you can switch any day on the Today screen)", 13, weight=ft.FontWeight.W_600),
+        th.muted("Training load", 13, font_family=th.FONT_SEMI), load, load_hint,
+        th.muted("Usual training days (you can switch any day on the Today screen)", 13, font_family=th.FONT_SEMI),
         ft.Row(days, wrap=True, spacing=0), cycling,
         ft.ExpansionTile(title=ft.Text("Manual overrides (leave blank for automatic)", size=14), tile_padding=0,
                          controls=[ft.Row([ov["kcal"], ov["protein"]], spacing=10), ft.Row([ov["carbs"], ov["fat"]], spacing=10)],
@@ -125,13 +125,14 @@ def build(app: "App") -> list[ft.Control]:
     )
 
     out: list[ft.Control] = [ft.Text("Profile & targets" if existing else "Welcome to NutriTrack", size=22,
-                                     weight=ft.FontWeight.W_700)]
+                                     font_family=th.FONT_BOLD)]
     if not existing:
         out.append(th.muted("Tell us about yourself to calculate calorie, macro and micronutrient targets. "
                             "Everything is stored only on this device.", 14))
     out.append(form)
     if existing:
-        out += _targets(app, p) + [_reminders_card(app), _training_card(app, p), _databases_card(app), _data_card(app)]
+        out += _targets(app, p) + [_reminders_card(app), _training_card(app, p), _appearance_card(app),
+                                   _databases_card(app), _data_card(app)]
     return out
 
 
@@ -140,7 +141,7 @@ def _targets(app: "App", p: Profile) -> list[ft.Control]:
     tt, rt = day_targets(p, True, creatine), day_targets(p, False, creatine)
 
     def stat(label, value):
-        return ft.Container(ft.Column([th.muted(label, 12), ft.Text(value, size=18, weight=ft.FontWeight.W_700)], spacing=0),
+        return ft.Container(ft.Column([th.muted(label, 12), ft.Text(value, size=18, font_family=th.FONT_BOLD)], spacing=0),
                             padding=10, border_radius=10, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST, expand=True)
 
     items: list[ft.Control] = [
@@ -180,8 +181,8 @@ def _training_card(app: "App", p: Profile) -> ft.Control:
         pct = round(g * (9 if key == "fat" else 4) / base.kcal * 100)
         ok = lo - 0.05 <= gkg <= hi + 0.05
         rows.append(ft.DataRow(cells=[
-            ft.DataCell(ft.Row([th.dot(th.MACRO_COLORS[key]), ft.Text(label, weight=ft.FontWeight.W_600)], spacing=6)),
-            ft.DataCell(ft.Text(f"{g} g", weight=ft.FontWeight.W_700)), ft.DataCell(ft.Text(f"{gkg:.1f}")),
+            ft.DataCell(ft.Row([th.dot(th.MACRO_COLORS[key]), ft.Text(label, font_family=th.FONT_SEMI)], spacing=6)),
+            ft.DataCell(ft.Text(f"{g} g", font_family=th.FONT_BOLD)), ft.DataCell(ft.Text(f"{gkg:.1f}")),
             ft.DataCell(th.muted(f"{lo:g}–{hi:g}")), ft.DataCell(th.muted(f"{pct}%")),
             ft.DataCell(th.chip("in range" if ok else ("below" if gkg < lo else "above"),
                                 th.STATUS_COLORS["met" if ok else "low"]))]))
@@ -194,7 +195,7 @@ def _training_card(app: "App", p: Profile) -> ft.Control:
         ft.Row([th.chip(f"{tr.name} · {tr.emphasis}", th.emphasis_color(tr.emphasis))], wrap=True),
         ft.Row([ft.DataTable(columns=[ft.DataColumn(ft.Text(h)) for h in ("", "Target", "g/kg", "Recommended", "% kcal", "")],
                              rows=rows, column_spacing=14, horizontal_margin=4)], scroll=ft.ScrollMode.AUTO),
-        ft.Text(f"Fueling tips for {tr.name.lower()}", weight=ft.FontWeight.W_600, size=14),
+        ft.Text(f"Fueling tips for {tr.name.lower()}", font_family=th.FONT_SEMI, size=14),
         *[ft.Row([ft.Text("•"), ft.Text(tip, size=13, expand=True)], vertical_alignment=ft.CrossAxisAlignment.START)
           for tip in tr.tips],
         ft.ExpansionTile(title=ft.Text("Compare all training types (g/kg/day)", size=14), tile_padding=0, controls=[
@@ -278,6 +279,16 @@ def _reminders_card(app: "App") -> ft.Control:
         ft.Row([ft.FilledButton("Save reminders", icon=ft.Icons.NOTIFICATIONS_ACTIVE, on_click=save),
                 ft.TextButton("Send a test", on_click=lambda _: app.page.run_task(notifier.test))], wrap=True),
     )
+
+
+def _appearance_card(app: "App") -> ft.Control:
+    mode = app.store.get("theme_mode", "system")
+    seg = ft.SegmentedButton(
+        segments=[ft.Segment(value="system", label=ft.Text("System"), icon=ft.Icon(ft.Icons.BRIGHTNESS_AUTO)),
+                  ft.Segment(value="light", label=ft.Text("Light"), icon=ft.Icon(ft.Icons.LIGHT_MODE)),
+                  ft.Segment(value="dark", label=ft.Text("Dark"), icon=ft.Icon(ft.Icons.DARK_MODE))],
+        selected=[mode], show_selected_icon=False, on_change=lambda e: app.set_theme_mode(list(e.control.selected)[0]))
+    return th.card(th.heading("Appearance", icon=ft.Icons.PALETTE_OUTLINED), ft.Row([seg], wrap=True))
 
 
 def _databases_card(app: "App") -> ft.Control:

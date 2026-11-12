@@ -22,13 +22,12 @@ def build(app: "App") -> list[ft.Control]:
     supps = app.store.supplements()
     t = app.svc.targets_for(app.date)
     totals, warnings = analyze_stack(supps, t)
-    out: list[ft.Control] = [ft.Text("Supplements", size=22, weight=ft.FontWeight.W_700)]
+    out: list[ft.Control] = [th.title("Supplements")]
 
     if warnings:
-        out.append(th.card(th.heading("Check your stack"),
-                           *[ft.Container(ft.Text(w, size=13), padding=10, border_radius=10,
-                                          bgcolor=ft.Colors.with_opacity(0.14, th.STATUS_COLORS["low"])) for w in warnings],
-                           bgcolor=ft.Colors.with_opacity(0.05, th.STATUS_COLORS["low"])))
+        out.append(th.card(th.heading("Check your stack", icon=ft.Icons.WARNING_AMBER_ROUNDED, icon_color=th.STATUS_COLORS["low"]),
+                           *[ft.Container(ft.Text(w, size=13), padding=12, border_radius=14,
+                                          bgcolor=ft.Colors.with_opacity(0.12, th.STATUS_COLORS["low"])) for w in warnings]))
 
     def edit(sid):
         app.supp_edit = sid
@@ -52,7 +51,7 @@ def build(app: "App") -> list[ft.Control]:
         tips = timing_advice(s)
         items.append(ft.Container(ft.Column([
             ft.Row([
-                ft.Column([ft.Text(s.name, weight=ft.FontWeight.W_600, size=15),
+                ft.Column([ft.Text(s.name, font_family=th.FONT_SEMI, size=15),
                            th.muted(f"{s.dose_label} · {', '.join(s.times)}{' · with food' if s.with_food else ''}", 12),
                            *([ft.Text(contents, size=12)] if contents else [])], spacing=2, expand=True),
                 ft.IconButton(ft.Icons.EDIT_OUTLINED, tooltip="Edit", on_click=lambda _, i=s.id: edit(i)),
@@ -87,7 +86,7 @@ def build(app: "App") -> list[ft.Control]:
     for tp in SUPP_TEMPLATES:
         added = tp.tid in owned
         tiles.append(ft.Container(
-            ft.Column([ft.Text(tp.name, weight=ft.FontWeight.W_600, size=13),
+            ft.Column([ft.Text(tp.name, font_family=th.FONT_SEMI, size=13),
                        th.muted(tp.dose_label + (" · added" if added else ""), 11)], spacing=2),
             col={"xs": 6, "sm": 4}, padding=10, border_radius=10, opacity=0.5 if added else 1,
             border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT), bgcolor=ft.Colors.SURFACE,
@@ -159,11 +158,11 @@ def _editor(app: "App", editing: str) -> list[ft.Control]:
         app.render()
 
     return [
-        ft.Text("Edit supplement" if existing else "Add supplement", size=22, weight=ft.FontWeight.W_700),
+        ft.Text("Edit supplement" if existing else "Add supplement", size=22, font_family=th.FONT_BOLD),
         th.card(name, dose, th.muted("Times per day. Each time is one dose; leave extras blank.", 12), ft.Row(times, spacing=8),
                 with_food, creatine,
                 th.muted("If this contains creatine, your water goal goes up about 500 ml/day (about 1 L/day while loading at 15 g+/day).", 11),
-                ft.Text("Nutrients per dose (from the label)", weight=ft.FontWeight.W_600, size=14),
+                ft.Text("Nutrients per dose (from the label)", font_family=th.FONT_SEMI, size=14),
                 ft.ResponsiveRow(list(micro.values()), spacing=10, run_spacing=10),
                 th.muted("Vitamin D: 1,000 IU = 25 µg. Vitamin A: 1 µg RAE = 3.33 IU retinol.", 11),
                 ft.Row([ft.FilledButton("Save" if existing else "Add to stack", icon=ft.Icons.CHECK, on_click=save),

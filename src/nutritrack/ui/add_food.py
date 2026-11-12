@@ -29,7 +29,7 @@ def open_sheet(app: "App", meal: str) -> None:
 
     def header(title: str, back: bool = False) -> ft.Control:
         left = [ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: picker(), tooltip="Back to search")] if back else []
-        return ft.Row(left + [ft.Text(title, size=18, weight=ft.FontWeight.W_700, expand=True),
+        return ft.Row(left + [ft.Text(title, size=18, font_family=th.FONT_BOLD, expand=True),
                               ft.IconButton(ft.Icons.CLOSE, on_click=lambda _: close(), tooltip="Close")])
 
     # ---------- search ----------
@@ -65,7 +65,7 @@ def open_sheet(app: "App", meal: str) -> None:
             status.value = "Type at least 2 letters, then search online."
             app.page.update(); return
         status.value = f"Searching {'USDA' if query['source'] == 'usda' else 'Open Food Facts'}…"
-        online_results.controls = [ft.ProgressRing(width=22, height=22)]
+        online_results.controls = [_skeleton() for _ in range(4)]
         app.page.update()
         try:
             hits = await asyncio.to_thread(app.svc.search_online, q, query["source"])
@@ -86,9 +86,9 @@ def open_sheet(app: "App", meal: str) -> None:
         if not tokens:
             recents = [f for f in (app.svc.find_food(i) for i in app.store.recents()) if f]
             if recents:
-                items.append(th.muted("RECENT", 11, weight=ft.FontWeight.W_600))
+                items.append(th.muted("RECENT", 11, font_family=th.FONT_SEMI))
                 items += [result_tile(f) for f in recents]
-            items.append(th.muted("ALL FOODS", 11, weight=ft.FontWeight.W_600))
+            items.append(th.muted("ALL FOODS", 11, font_family=th.FONT_SEMI))
             items += [result_tile(f) for f in sorted(foods, key=lambda f: f.name)]
         else:
             hits = [f for f in foods if all(t in f.name.lower() or t in f.category.lower() for t in tokens)]
@@ -118,7 +118,7 @@ def open_sheet(app: "App", meal: str) -> None:
                     ft.TextButton("Quick add", icon=ft.Icons.BOLT, on_click=lambda _: quick())], wrap=True),
             results,
             ft.Divider(),
-            ft.Row([ft.Text("Search online", weight=ft.FontWeight.W_600, size=14, expand=True), source]),
+            ft.Row([ft.Text("Search online", font_family=th.FONT_SEMI, size=14, expand=True), source]),
             ft.FilledButton("Search online", icon=ft.Icons.TRAVEL_EXPLORE, on_click=lambda _: app.page.run_task(search_online)),
             status, online_results,
         ]
@@ -217,7 +217,7 @@ def open_sheet(app: "App", meal: str) -> None:
         def update_preview(*_):
             grams, _ = amount()
             n = scale_nutrients(f.per100, grams)
-            boxes = [ft.Container(ft.Column([ft.Text(fmt(n[k]), size=18, weight=ft.FontWeight.W_700), th.muted(lbl, 11)],
+            boxes = [ft.Container(ft.Column([ft.Text(fmt(n[k]), size=18, font_family=th.FONT_BOLD), th.muted(lbl, 11)],
                                             spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                                   expand=True, padding=10, border_radius=10, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST)
                      for k, lbl in (("kcal", "kcal"), ("protein", "protein"), ("carbs", "carbs"), ("fat", "fat"))]
@@ -275,3 +275,15 @@ def open_sheet(app: "App", meal: str) -> None:
 
     picker()
     app.page.show_dialog(sheet)
+
+
+def _skeleton() -> ft.Control:
+    """Shimmering placeholder row while online results load."""
+    def block(w, h):
+        return ft.Container(width=w, height=h, border_radius=6, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST)
+    row = ft.Container(ft.Column([block(220, 14), block(140, 10)], spacing=6), padding=ft.Padding.symmetric(vertical=10, horizontal=16))
+    try:
+        return ft.Shimmer(content=row, base_color=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                          highlight_color=ft.Colors.SURFACE_CONTAINER_LOW)
+    except Exception:
+        return row
