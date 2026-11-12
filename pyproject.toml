@@ -1,0 +1,31 @@
+[project]
+name = "nutritrack"
+version = "2.0.0"
+description = "Calories, macros, micronutrients, water and supplements, with reminders and a garden that grows with your consistency."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "flet==1.1.2",
+  "flet-notifications==1.1.2",
+  "flet-charts==1.1.2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "flet[web]==1.1.2"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.flet]
+org = "app.nutritrack"
+product = "NutriTrack"
+company = "NutriTrack"
+copyright = "NutriTrack"
+
+[tool.flet.app]
+path = "src"
+
+[tool.flet.android.permission]
+"android.permission.POST_NOTIFICATIONS" = true
+"android.permission.RECEIVE_BOOT_COMPLETED" = true
