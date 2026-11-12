@@ -9,7 +9,10 @@ from .core.garden import (STAGES, SPECIES, DayScore, History, level_info, score_
 from .core.nutrition import (DEFAULT_TRAINING_DAYS, Nutrients, Targets, day_targets, fmt_water, sum_nutrients,
                              weekday_sun0)
 from .core.pacing import micro_gaps
+from .core import online
+from .core.nutrition import MICROS, compute_targets
 from .core.reminders import Event, Planned, due_events, plan_notifications
+from .core.trends import AdaptiveTDEE, DayRow, PeriodSummary, adaptive_tdee, summarize, weight_trend
 from .core.supplements import daily_creatine
 from .store import Store
 
@@ -75,7 +78,67 @@ class Service:
 
     def targets_for(self, key: str) -> Targets:
         p = self.store.profile()
+        if p.use_adaptive:
+            a = self.adaptive()
+            if a.ready:
+                p.adaptive_tdee = a.blended
         return day_targets(p, self.is_training_day(key), daily_creatine(self.store.supplements()))
+
+    # ---------- weight & adaptive TDEE ----------
+    def log_weight(self, key: str, kg: float | None) -> None:
+        self.store.set_day(key, weight_kg=kg)
+        self._adaptive_cache = None
+        p = self.store.profile()
+        if p and p.auto_weight:
+            series = weight_trend(self.store.weights())
+            if series:
+                p.weight_kg = round(series[-1][2], 1)
+                self.store.save_profile(p)
+
+    def adaptive(self) -> AdaptiveTDEE:
+        cache = getattr(self, "_adaptive_cache", None)
+        stamp = (today_key(), len(self.store.weights()), round(sum(self.store.intake_by_date().values())))
+        if cache and cache[0] == stamp:
+            return cache[1]
+        p = self.store.profile()
+        p.adaptive_tdee = None
+        formula = compute_targets(p).tdee
+        res = adaptive_tdee(self.store.intake_by_date(), self.store.weights(), formula, today_key())
+        self._adaptive_cache = (stamp, res)
+        return res
+
+    def period(self, days: int) -> PeriodSummary:
+        end = date.fromisoformat(today_key())
+        rows: list[DayRow] = []
+        for i in range(days - 1, -1, -1):
+            k = (end - timedelta(days=i)).isoformat()
+            t = self.targets_for(k)
+            tot = self.totals(k)
+            sched, taken = self.dose_counts(k) if self.store.doses(k) or k == today_key() else (0, 0)
+            logged = self.has_log(k)
+            rows.append(DayRow(
+                date=k, kcal=tot.total["kcal"], target_kcal=t.kcal, protein=tot.total["protein"], carbs=tot.total["carbs"],
+                fat=tot.total["fat"], target_protein=t.protein, target_carbs=t.carbs, target_fat=t.fat,
+                water_ml=tot.water_ml, target_water=t.water_ml, doses_taken=taken, doses_scheduled=sched,
+                score=self.day_score(k), logged=logged,
+                micro_pct={m.key: tot.total[m.key] / t.micros[m.key].target for m in MICROS if not m.limit}))
+        return summarize(rows)
+
+    # ---------- online foods ----------
+    def usda_key(self) -> str | None:
+        return self.store.get("usda_api_key") or None
+
+    def search_online(self, query: str, source: str) -> list[Food]:
+        if source == "usda":
+            return online.search_usda(query, self.usda_key())
+        return online.search_off(query)
+
+    def lookup_barcode(self, code: str) -> Food | None:
+        return online.lookup_barcode(code)
+
+    def remember_food(self, f: Food) -> None:
+        """Keep a copy of an online food so it works offline and shows up in recents."""
+        self.store.save_custom_food(f)
 
     def totals(self, key: str) -> DayTotals:
         food = sum_nutrients(e["n"] for e in self.store.entries(key))

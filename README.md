@@ -10,7 +10,7 @@ Research behind the design: [`docs/research.md`](docs/research.md)
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install "flet[all]==1.1.2" flet-notifications==1.1.2 flet-charts==1.1.2 pytest
+pip install "flet[all]==1.1.2" flet-notifications==1.1.2 flet-charts==1.1.2 flet-camera==1.1.2 zxing-cpp pillow pytest python-barcode
 flet run src/main.py          # desktop window
 flet run --web src/main.py    # in your browser
 ```
@@ -28,6 +28,15 @@ During development you can also scan a QR code with the **Flet app** on your pho
 Your data lives in a SQLite file in the app's private storage (`~/.nutritrack/nutritrack.db` on desktop), which you
 can analyse directly with pandas or any SQLite tool.
 
+## Online food data
+
+* **Open Food Facts**: free, no key. Brand search and barcodes. Crowd-sourced, so check odd values against the label.
+* **USDA FoodData Central**: lab-measured whole foods with full micronutrients. The shared `DEMO_KEY` is rate-limited,
+  so get a free key at <https://api.data.gov/signup/> and paste it in **Profile → Food databases**.
+
+Barcode photos are decoded on the device with `zxing-cpp`. If a phone build doesn't include it, the scanner falls back
+to typing the barcode number.
+
 ## Tests
 
 ```bash
@@ -38,6 +47,8 @@ pytest -q
   JavaScript app (targets for 2,016 profile/day/creatine combinations, scoring, pacing, streaks and supplement checks).
   The reference values come from `tests/js_reference.mjs`, run against `legacy-web/`.
 * `tests/test_store_service.py`: database, carb cycling, creatine water, garden freezing, reminders and backups.
+* `tests/test_stage_c.py`: Open Food Facts and USDA parsing (real and API-format fixtures), barcode decoding, weight
+  trend, adaptive TDEE recovering a known burn rate even with ±1 kg water noise, and the service functions.
 * `tests/test_ui_build.py`: every screen builds against a real database.
 
 ## Python rebuild stages
@@ -46,7 +57,7 @@ pytest -q
 |---|---|---|
 | **A. Core + logging** | All nutrition science, training database, foods, supplements, pacing, garden scoring and reminder rules ported to tested Python; SQLite store; Today screen (date nav, training/rest toggle, calorie ring, carb-first macro bars, meals with copy-yesterday, micronutrients with the supplement share), Add-food sheet (search, recents, servings or grams, live preview, quick add), custom foods, Profile with onboarding, carb-cycling table and training recommendations | ✅ Done |
 | **B. Water, supplements, pace, reminders, garden** | Water card (35 ml/kg + training + creatine, with breakdown); supplement checklist on Today with "due" flags; Supplements screen (stack, pause/edit/remove, timing tips, upper-limit and iron/calcium conflict checks, daily totals, 15 templates, editor with creatine field); pace check with "expected by now" markers and evening micronutrient gaps; **OS-scheduled notifications** through `flet-notifications` on Android/iOS/macOS/Windows (daily supplement reminders with a **Mark taken** action, live check-ins, water nudges; re-synced on every change), with an in-app reminder loop on web and Linux; reminder settings and test; tree card with growth tips and streak; Garden screen (level, stats, 8-week forest, seed picker, scoring rules); backup export and import | ✅ Done |
-| **C. Extended data** | Online food search (Open Food Facts / USDA), barcode scanning, weekly trends with `flet-charts`, weight log and adaptive TDEE | ⏳ Next |
+| **C. Extended data** | Online food search: **Open Food Facts** (branded foods, no key; picking a result fetches the full product) and **USDA FoodData Central** (lab-measured whole foods; add your free key in Profile → Food databases); online picks are saved for offline use and recents. **Barcode scanning**: camera capture or a photo decoded with zxing-cpp, or type the number. **Progress → Trends**: 7/30/90-day ranges, weight log with scale-vs-trend chart, calories-vs-target chart, macro/water/supplement averages, micronutrient coverage with consistently-low flags. **Adaptive TDEE**: intake minus the least-squares weight slope × 7,700 kcal/kg, blended with the formula by confidence and capped at ±25%; optional switch; profile weight follows your trend | ✅ Done |
 
 The Python app now does everything the original HTML/JavaScript version did. That version is kept in
 [`legacy-web/`](legacy-web/) only because the parity tests generate their reference values from it.
@@ -64,9 +75,12 @@ src/nutritrack/core/             Pure logic, no UI. Everything here is unit-test
   garden.py                      Day scoring, streaks/shields, levels, species
   trees.py                       Tree SVG drawings
   reminders.py                   Reminder rules + OS notification plan
+  online.py                      Open Food Facts + USDA clients and parsers
+  barcode.py                     Barcode decoding from photos (zxing-cpp)
+  trends.py                      Weight trend, adaptive TDEE, period summaries
 src/nutritrack/store.py          SQLite storage
 src/nutritrack/service.py        App logic shared by the screens
-src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden) + notify.py (reminders)
+src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden, trends) + notify.py (reminders)
 tests/                           pytest suite
 legacy-web/                      Original HTML/JS app (reference)
 ```

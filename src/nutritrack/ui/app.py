@@ -11,7 +11,7 @@ NAV = [
     ("today", "Today", ft.Icons.TODAY_OUTLINED, ft.Icons.TODAY),
     ("foods", "Foods", ft.Icons.RESTAURANT_OUTLINED, ft.Icons.RESTAURANT),
     ("supps", "Supps", ft.Icons.MEDICATION_OUTLINED, ft.Icons.MEDICATION),
-    ("garden", "Garden", ft.Icons.PARK_OUTLINED, ft.Icons.PARK),
+    ("garden", "Progress", ft.Icons.PARK_OUTLINED, ft.Icons.PARK),
     ("profile", "Profile", ft.Icons.PERSON_OUTLINE, ft.Icons.PERSON),
 ]
 

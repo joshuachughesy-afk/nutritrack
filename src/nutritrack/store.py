@@ -191,6 +191,16 @@ class Store:
                 (date, cur["day_type"], cur["species"], cur["peak_stage"] or 0,
                  json.dumps(cur["garden"]) if cur["garden"] else None, json.dumps(cur["notified"] or []), cur["weight_kg"]))
 
+    def weights(self) -> list[tuple[str, float]]:
+        return [(r["date"], float(r["weight_kg"])) for r in
+                self._q("select date, weight_kg from days where weight_kg is not null order by date")]
+
+    def intake_by_date(self) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for r in self._q("select date, n from entries"):
+            out[r["date"]] = out.get(r["date"], 0.0) + float(json.loads(r["n"]).get("kcal") or 0)
+        return out
+
     def frozen_days(self) -> dict[str, dict]:
         return {r["date"]: json.loads(r["garden"]) for r in self._q("select date, garden from days where garden is not null")}
 

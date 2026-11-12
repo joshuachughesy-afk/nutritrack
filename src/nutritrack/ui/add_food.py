@@ -1,10 +1,13 @@
-"""Add-food bottom sheet: search, recents, amount picker with live preview, and quick add."""
+"""Add-food bottom sheet: local + online search, barcode scanning, amount picker with live preview, and quick add."""
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 import flet as ft
 
+from ..core import barcode as bc
+from ..core import online
 from ..core.foods import Food
 from ..core.nutrition import MICROS, empty_nutrients, fmt, scale_nutrients
 from . import theme as th
@@ -32,12 +35,49 @@ def open_sheet(app: "App", meal: str) -> None:
     # ---------- search ----------
     results = ft.Column(spacing=0)
 
-    def result_tile(f: Food) -> ft.Control:
+    SOURCE_TAGS = {"custom": "custom", "OFF": "Open Food Facts", "USDA": "USDA"}
+
+    def result_tile(f: Food, fetch_full: bool = False) -> ft.Control:
         sv = f.servings[0]
-        tag = "  · custom" if f.source == "custom" else ""
-        return ft.ListTile(title=ft.Text(f.name + tag, size=14),
-                           subtitle=th.muted(f"{sv.label} · {fmt(f.per100['kcal'] * sv.g / 100)} kcal", 12),
-                           dense=True, on_click=lambda _, food=f: detail(food))
+        tag = f"  · {SOURCE_TAGS[f.source]}" if f.source in SOURCE_TAGS else ""
+        return ft.ListTile(title=ft.Text(f.name, size=14),
+                           subtitle=th.muted(f"{sv.label} · {fmt(f.per100['kcal'] * sv.g / 100)} kcal{tag}", 12),
+                           dense=True, on_click=lambda _, food=f: (app.page.run_task(open_full, food) if fetch_full
+                                                                   else detail(food)))
+
+    async def open_full(f: Food) -> None:
+        """Search hits carry fewer nutrients than the product page, so fetch the full product before showing it."""
+        status.value = "Loading product…"
+        app.page.update()
+        try:
+            full = await asyncio.to_thread(online.lookup_barcode, f.id.removeprefix("off-"))
+        except Exception:
+            full = None
+        detail(full or f)
+
+    status = th.muted("", 12)
+    online_results = ft.Column(spacing=0)
+    query = {"q": "", "source": "off"}
+
+    async def search_online(_=None) -> None:
+        q = query["q"].strip()
+        if len(q) < 2:
+            status.value = "Type at least 2 letters, then search online."
+            app.page.update(); return
+        status.value = f"Searching {'USDA' if query['source'] == 'usda' else 'Open Food Facts'}…"
+        online_results.controls = [ft.ProgressRing(width=22, height=22)]
+        app.page.update()
+        try:
+            hits = await asyncio.to_thread(app.svc.search_online, q, query["source"])
+            status.value = (f"{len(hits)} results. Values are from "
+                            + ("USDA FoodData Central (lab-measured)." if query["source"] == "usda"
+                               else "Open Food Facts (crowd-sourced, so check against the label)."))
+            online_results.controls = [result_tile(f, fetch_full=f.source == "OFF") for f in hits] or \
+                [th.muted("No results online either. Create it under Foods.", 13)]
+        except Exception as ex:
+            status.value = f"Couldn't search online: {ex}"
+            online_results.controls = []
+        app.page.update()
 
     def fill_results(q: str) -> None:
         tokens = [t for t in q.lower().split() if t]
@@ -52,19 +92,111 @@ def open_sheet(app: "App", meal: str) -> None:
             items += [result_tile(f) for f in sorted(foods, key=lambda f: f.name)]
         else:
             hits = [f for f in foods if all(t in f.name.lower() or t in f.category.lower() for t in tokens)]
-            items = [result_tile(f) for f in hits] or [th.muted(f"No match for “{q}”. Create it under Foods.", 13)]
+            items = [result_tile(f) for f in hits] or [th.muted(f"Nothing saved matches “{q}”. Search online below, or create it under Foods.", 13)]
         results.controls = items
 
     def picker() -> None:
+        def on_change(e):
+            query["q"] = e.control.value
+            fill_results(e.control.value)
+            app.page.update()
+
         search = ft.TextField(hint_text=f"Search {len(app.svc.all_foods())} foods…", prefix_icon=ft.Icons.SEARCH,
-                              autofocus=True, dense=True, border_radius=12,
-                              on_change=lambda e: (fill_results(e.control.value), app.page.update()))
-        fill_results("")
-        content.controls = [header(f"Add to {MEAL_LABELS[meal]}"), search,
-                            ft.Row([ft.TextButton("Quick add calories", icon=ft.Icons.BOLT, on_click=lambda _: quick())],
-                                   alignment=ft.MainAxisAlignment.END),
-                            results]
+                              autofocus=True, dense=True, border_radius=12, on_change=on_change,
+                              on_submit=lambda _: app.page.run_task(search_online), value=query["q"])
+
+        def set_source(e):
+            query["source"] = list(e.control.selected)[0]
+
+        source = ft.SegmentedButton(segments=[ft.Segment(value="off", label=ft.Text("Brands")),
+                                              ft.Segment(value="usda", label=ft.Text("USDA"))],
+                                    selected=[query["source"]], on_change=set_source, show_selected_icon=False)
+        fill_results(query["q"])
+        content.controls = [
+            header(f"Add to {MEAL_LABELS[meal]}"), search,
+            ft.Row([ft.FilledTonalButton("Scan barcode", icon=ft.Icons.QR_CODE_SCANNER, on_click=lambda _: scan()),
+                    ft.TextButton("Quick add", icon=ft.Icons.BOLT, on_click=lambda _: quick())], wrap=True),
+            results,
+            ft.Divider(),
+            ft.Row([ft.Text("Search online", weight=ft.FontWeight.W_600, size=14, expand=True), source]),
+            ft.FilledButton("Search online", icon=ft.Icons.TRAVEL_EXPLORE, on_click=lambda _: app.page.run_task(search_online)),
+            status, online_results,
+        ]
         app.page.update()
+
+    # ---------- barcode ----------
+    def scan() -> None:
+        code = ft.TextField(label="Barcode number", hint_text="e.g. 0038000016912", keyboard_type=ft.KeyboardType.NUMBER,
+                            dense=True, border_radius=10, expand=True, autofocus=app.page.web or not bc.available())
+        scan_status = th.muted("Point the camera at the barcode, or type the number printed under it.", 12)
+        camera_box = ft.Column(spacing=8)
+
+        async def look_up(_=None) -> None:
+            digits = online.normalize_barcode(code.value or "")
+            if not digits:
+                code.error = "Enter 8–14 digits"
+                app.page.update(); return
+            code.error = None
+            scan_status.value = "Looking it up on Open Food Facts…"
+            app.page.update()
+            try:
+                f = await asyncio.to_thread(app.svc.lookup_barcode, digits)
+            except Exception as ex:
+                scan_status.value = f"Couldn't reach Open Food Facts: {ex}"
+                app.page.update(); return
+            if f:
+                detail(f)
+            else:
+                scan_status.value = (f"Product {digits} isn't in Open Food Facts yet. Create it under Foods "
+                                     "(and consider adding it at openfoodfacts.org).")
+                app.page.update()
+
+        async def decoded(image: bytes) -> None:
+            text = await asyncio.to_thread(bc.decode, image)
+            if text:
+                code.value = text
+                await look_up()
+            else:
+                scan_status.value = "No barcode found in that photo. Fill the frame with the barcode and try again."
+                app.page.update()
+
+        async def from_photo(_) -> None:
+            files = await ft.FilePicker().pick_files(file_type=ft.FilePickerFileType.IMAGE, with_data=True)
+            if files:
+                data = files[0].bytes or open(files[0].path, "rb").read()
+                await decoded(data)
+
+        async def start_camera() -> None:
+            try:
+                import flet_camera as fcam
+                cam = fcam.Camera(height=240, expand=True)
+                camera_box.controls = [ft.Container(cam, height=240, border_radius=12, clip_behavior=ft.ClipBehavior.HARD_EDGE)]
+                app.page.update()
+                cams = await cam.get_available_cameras()
+                back = next((c for c in cams if "back" in str(c.lens_direction).lower()), cams[0] if cams else None)
+                if back is None:
+                    raise RuntimeError("no camera")
+                await cam.initialize(back, fcam.ResolutionPreset.HIGH, enable_audio=False)
+
+                async def capture(_):
+                    scan_status.value = "Reading barcode…"
+                    app.page.update()
+                    await decoded(await cam.take_picture())
+
+                camera_box.controls.append(ft.FilledButton("Capture", icon=ft.Icons.CAMERA_ALT, on_click=capture))
+            except Exception:
+                camera_box.controls = []
+            app.page.update()
+
+        buttons = [ft.FilledButton("Look up", icon=ft.Icons.SEARCH, on_click=look_up)]
+        if bc.available():
+            buttons.append(ft.OutlinedButton("Use a photo", icon=ft.Icons.IMAGE, on_click=from_photo))
+        code.on_submit = look_up
+        content.controls = [header("Scan barcode", back=True), camera_box, ft.Row([code]), ft.Row(buttons, wrap=True),
+                            scan_status]
+        app.page.update()
+        if bc.available() and not app.page.web:
+            app.page.run_task(start_camera)
 
     # ---------- amount + preview ----------
     def detail(f: Food) -> None:
@@ -102,6 +234,8 @@ def open_sheet(app: "App", meal: str) -> None:
             grams, label = amount()
             if grams <= 0:
                 return
+            if f.source in ("OFF", "USDA"):
+                app.svc.remember_food(f)  # keep a copy so it works offline and shows in recents
             app.store.add_entry(app.date, meal, f.name, scale_nutrients(f.per100, grams), food_id=f.id, grams=grams,
                                 amount_label=label)
             close()

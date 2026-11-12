@@ -90,6 +90,8 @@ class Profile:
     carb_cycling: bool = True
     overrides: dict = field(default_factory=dict)  # kcal / protein / carbs / fat
     adaptive_tdee: float | None = None             # set by the adaptive-TDEE engine when enabled
+    use_adaptive: bool = False                     # let logged intake + weight trend refine TDEE
+    auto_weight: bool = True                       # keep weight_kg in sync with the smoothed weight trend
 
     def to_dict(self) -> dict:
         d = self.__dict__.copy()

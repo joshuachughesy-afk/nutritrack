@@ -124,6 +124,20 @@ Timing* (2017); Helms et al., *Evidence-based recommendations for natural bodybu
 Concurrent or hybrid training has no dedicated position stand, so its ranges combine the endurance carb bands with
 resistance-training protein guidance.
 
+## 7. Adaptive TDEE (how NutriTrack learns your real burn rate)
+
+Formula estimates such as Mifflin-St Jeor are typically within about ±10% for most people, but can be off by several
+hundred kcal for an individual. Once you've logged at least 10 full days and 6 weigh-ins over 2+ weeks, NutriTrack
+estimates your real expenditure:
+
+    TDEE ≈ average logged intake − (weight slope kg/day × 7,700 kcal/kg)
+
+* **Least-squares slope, not a smoothed trend.** Smoothing (as in the Hacker's Diet) is great for display but lags real
+  change. In testing, a lagging trend under-read a 1.7 kg loss as 0.8 kg and under-estimated TDEE by about 260 kcal. A
+  regression line averages out the same ±1–2 kg water noise with no lag.
+* **Blended by confidence** (logged days, weigh-ins, span) with the formula, and **capped at ±25%** of it.
+* **Only as good as your logging:** days under 1,000 kcal logged are treated as incomplete and ignored.
+
 ## Sources
 
 - [Fitia: Best food tracking app (US 2026 comparison)](https://fitia.app/en/learn/article/best-food-tracking-app-us-2026-comparison/)

@@ -16,6 +16,23 @@ if TYPE_CHECKING:
 
 
 def build(app: "App") -> list[ft.Control]:
+    """The Progress tab: Garden (motivation) and Trends (analysis)."""
+    tab = getattr(app, "progress_tab", "garden")
+
+    def switch(e):
+        app.progress_tab = list(e.control.selected)[0]
+        app.render()
+
+    toggle = ft.SegmentedButton(segments=[ft.Segment(value="garden", label=ft.Text("Garden"), icon=ft.Icon(ft.Icons.PARK)),
+                                          ft.Segment(value="trends", label=ft.Text("Trends"), icon=ft.Icon(ft.Icons.SHOW_CHART))],
+                                selected=[tab], on_change=switch, show_selected_icon=False)
+    if tab == "trends":
+        from . import trends
+        return [ft.Text("Progress", size=22, weight=ft.FontWeight.W_700), toggle] + trends.build(app)
+    return [toggle] + _garden(app)
+
+
+def _garden(app: "App") -> list[ft.Control]:
     svc = app.svc
     svc.finalize_garden()
     days, h = svc.history()

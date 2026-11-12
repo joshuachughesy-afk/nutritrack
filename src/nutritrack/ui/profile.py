@@ -131,7 +131,7 @@ def build(app: "App") -> list[ft.Control]:
                             "Everything is stored only on this device.", 14))
     out.append(form)
     if existing:
-        out += _targets(app, p) + [_reminders_card(app), _training_card(app, p), _data_card(app)]
+        out += _targets(app, p) + [_reminders_card(app), _training_card(app, p), _databases_card(app), _data_card(app)]
     return out
 
 
@@ -277,6 +277,23 @@ def _reminders_card(app: "App") -> ft.Control:
         th.muted(how, 12),
         ft.Row([ft.FilledButton("Save reminders", icon=ft.Icons.NOTIFICATIONS_ACTIVE, on_click=save),
                 ft.TextButton("Send a test", on_click=lambda _: app.page.run_task(notifier.test))], wrap=True),
+    )
+
+
+def _databases_card(app: "App") -> ft.Control:
+    key = ft.TextField(label="USDA FoodData Central API key (optional)", value=app.store.get("usda_api_key") or "",
+                       password=True, can_reveal_password=True, dense=True, border_radius=10)
+
+    def save(_):
+        app.store.set("usda_api_key", (key.value or "").strip())
+        app.toast("USDA key saved" if key.value else "Using USDA's shared demo key")
+
+    return th.card(
+        th.heading("Food databases", icon=ft.Icons.TRAVEL_EXPLORE),
+        th.muted("Brand search and barcodes use Open Food Facts (free, no key, crowd-sourced). Whole foods use USDA FoodData "
+                 "Central (lab-measured, full micronutrients). USDA's shared demo key is often busy, so get your own free key "
+                 "at api.data.gov/signup and paste it here. It's stored only on this device.", 12),
+        key, ft.FilledButton("Save key", icon=ft.Icons.KEY, on_click=save),
     )
 
 

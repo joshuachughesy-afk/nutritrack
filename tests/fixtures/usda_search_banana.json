@@ -1,0 +1,50 @@
+{
+  "totalHits": 2,
+  "foods": [
+    {
+      "fdcId": 173944,
+      "description": "Bananas, raw",
+      "dataType": "SR Legacy",
+      "foodCategory": "Fruits and Fruit Juices",
+      "foodNutrients": [
+        {"nutrientId": 1003, "nutrientName": "Protein", "nutrientNumber": "203", "unitName": "G", "value": 1.09},
+        {"nutrientId": 1004, "nutrientName": "Total lipid (fat)", "nutrientNumber": "204", "unitName": "G", "value": 0.33},
+        {"nutrientId": 1005, "nutrientName": "Carbohydrate, by difference", "nutrientNumber": "205", "unitName": "G", "value": 22.8},
+        {"nutrientId": 1008, "nutrientName": "Energy", "nutrientNumber": "208", "unitName": "KCAL", "value": 89},
+        {"nutrientId": 1079, "nutrientName": "Fiber, total dietary", "nutrientNumber": "291", "unitName": "G", "value": 2.6},
+        {"nutrientId": 2000, "nutrientName": "Sugars, total including NLEA", "nutrientNumber": "269", "unitName": "G", "value": 12.2},
+        {"nutrientId": 1087, "nutrientName": "Calcium, Ca", "nutrientNumber": "301", "unitName": "MG", "value": 5},
+        {"nutrientId": 1089, "nutrientName": "Iron, Fe", "nutrientNumber": "303", "unitName": "MG", "value": 0.26},
+        {"nutrientId": 1090, "nutrientName": "Magnesium, Mg", "nutrientNumber": "304", "unitName": "MG", "value": 27},
+        {"nutrientId": 1092, "nutrientName": "Potassium, K", "nutrientNumber": "306", "unitName": "MG", "value": 358},
+        {"nutrientId": 1093, "nutrientName": "Sodium, Na", "nutrientNumber": "307", "unitName": "MG", "value": 1},
+        {"nutrientId": 1095, "nutrientName": "Zinc, Zn", "nutrientNumber": "309", "unitName": "MG", "value": 0.15},
+        {"nutrientId": 1106, "nutrientName": "Vitamin A, RAE", "nutrientNumber": "320", "unitName": "UG", "value": 3},
+        {"nutrientId": 1162, "nutrientName": "Vitamin C, total ascorbic acid", "nutrientNumber": "401", "unitName": "MG", "value": 8.7},
+        {"nutrientId": 1109, "nutrientName": "Vitamin E (alpha-tocopherol)", "nutrientNumber": "323", "unitName": "MG", "value": 0.1},
+        {"nutrientId": 1185, "nutrientName": "Vitamin K (phylloquinone)", "nutrientNumber": "430", "unitName": "UG", "value": 0.5},
+        {"nutrientId": 1178, "nutrientName": "Vitamin B-12", "nutrientNumber": "418", "unitName": "UG", "value": 0},
+        {"nutrientId": 1190, "nutrientName": "Folate, DFE", "nutrientNumber": "435", "unitName": "UG", "value": 20}
+      ],
+      "foodMeasures": [
+        {"disseminationText": "1 medium (7\" to 7-7/8\" long)", "gramWeight": 118, "rank": 3},
+        {"disseminationText": "1 cup, sliced", "gramWeight": 150, "rank": 4}
+      ]
+    },
+    {
+      "fdcId": 1105314,
+      "description": "Banana, ripe and slightly ripe, raw",
+      "dataType": "Foundation",
+      "foodCategory": "Fruits and Fruit Juices",
+      "foodNutrients": [
+        {"nutrientId": 1003, "nutrientName": "Protein", "unitName": "G", "value": 0.74},
+        {"nutrientId": 1004, "nutrientName": "Total lipid (fat)", "unitName": "G", "value": 0.29},
+        {"nutrientId": 1005, "nutrientName": "Carbohydrate, by difference", "unitName": "G", "value": 23.0},
+        {"nutrientId": 2047, "nutrientName": "Energy (Atwater General Factors)", "unitName": "KCAL", "value": 97.4},
+        {"nutrientId": 1092, "nutrientName": "Potassium, K", "unitName": "MG", "value": 326},
+        {"nutrientId": 1114, "nutrientName": "Vitamin D (D2 + D3)", "unitName": "UG", "value": 0}
+      ],
+      "foodMeasures": []
+    }
+  ]
+}

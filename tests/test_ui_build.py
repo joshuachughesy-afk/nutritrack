@@ -73,6 +73,16 @@ def test_onboarding_builds_without_profile(tmp_path):
     assert profile.build(a)
 
 
+def test_progress_trends_tab_builds(app):
+    from datetime import date, timedelta
+    t = date.today()
+    for i in range(20):
+        app.svc.log_weight((t - timedelta(days=i)).isoformat(), 84 - i * 0.05)
+    for n in (7, 30, 90):
+        app.progress_tab, app.trend_days = "trends", n
+        assert garden.build(app)
+
+
 def test_add_food_sheet_opens_and_adds(app):
     add_food.open_sheet(app, "breakfast")
     sheet = app.page.dialogs[-1]
