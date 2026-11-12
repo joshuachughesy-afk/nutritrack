@@ -8,6 +8,7 @@ const blank = () => ({
   customFoods: [],        // { id, name, category, servings, per100, source:'custom' }
   logs: {},               // { 'YYYY-MM-DD': { entries: [...] } }
   recents: [],            // food ids, most recent first
+  supplements: [],        // { id, name, doseLabel, n, times:['HH:MM'], withFood, active }
 });
 
 let memory = null;
@@ -41,6 +42,27 @@ export const store = {
   },
   removeEntry(date, id) {
     this.update(s => { const d = s.logs[date]; if (d) d.entries = d.entries.filter(e => e.id !== id); });
+  },
+  dayData(date) { return load().logs[date] ?? {}; },
+  ensureDay(s, date) { return (s.logs[date] ??= { entries: [] }); },
+  addWater(date, ml) { this.update(s => (this.ensureDay(s, date).water ??= []).push({ id: uid(), ml, at: Date.now() })); },
+  undoWater(date) { this.update(s => s.logs[date]?.water?.pop()); },
+  setDayType(date, type) { this.update(s => { this.ensureDay(s, date).dayType = type; }); },
+  // Toggle a scheduled dose. Snapshot nutrients so editing the supplement later doesn't rewrite history.
+  toggleDose(date, supp, time) {
+    this.update(s => {
+      const d = this.ensureDay(s, date);
+      d.supps ??= [];
+      const i = d.supps.findIndex(x => x.suppId === supp.id && x.time === time);
+      if (i >= 0) d.supps.splice(i, 1);
+      else d.supps.push({ id: uid(), suppId: supp.id, name: supp.name, time, at: Date.now(), n: { ...supp.n } });
+    });
+  },
+  saveSupplement(supp) {
+    this.update(s => {
+      const i = s.supplements.findIndex(x => x.id === supp.id);
+      if (i >= 0) s.supplements[i] = supp; else s.supplements.push(supp);
+    });
   },
   exportJSON() { return JSON.stringify(load(), null, 2); },
   importJSON(text) {

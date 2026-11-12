@@ -1,9 +1,10 @@
 import { store, uid } from './store.js';
 import { FOODS } from './foods.js';
 import { TRAINING, LOADS } from './training.js';
+import { SUPP_TEMPLATES, timingAdvice, analyzeStack } from './supplements.js';
 import {
   MACROS, MICROS, ACTIVITY, GOALS, computeTargets, scaleNutrients, sumNutrients, emptyNutrients,
-  microStatus, fmt, kgToLb, lbToKg, cmToIn, inToCm,
+  microStatus, fmt, kgToLb, lbToKg, cmToIn, inToCm, dayTargets, DEFAULT_TRAINING_DAYS, ML_PER_OZ,
 } from './nutrition.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -20,7 +21,18 @@ const prettyDate = key => {
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 };
 
-const ui = { view: 'today', date: dateKey(new Date()), modal: null };
+const ui = { view: 'today', date: dateKey(new Date()), modal: null, suppEdit: null, suppDraft: null };
+
+const weekday = key => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).getDay(); };
+const isTrainingDay = key => {
+  const s = store.get(), dt = store.dayData(key).dayType;
+  return dt ? dt === 'training' : (s.profile?.trainingDays ?? DEFAULT_TRAINING_DAYS).includes(weekday(key));
+};
+const targetsFor = key => dayTargets(store.get().profile, isTrainingDay(key));
+const imperial = () => store.get().units === 'imperial';
+const fmtWater = ml => imperial() ? `${Math.round(ml / ML_PER_OZ)} oz` : ml >= 1000 ? `${(ml / 1000).toFixed(2).replace(/0$/, '')} L` : `${ml} ml`;
+const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const fmtTime = hhmm => { const [h, m] = hhmm.split(':').map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
 
 const allFoods = () => [...store.get().customFoods, ...FOODS];
 const findFood = id => allFoods().find(f => f.id === id);
@@ -31,7 +43,7 @@ function render() {
   if (!s.profile && ui.view !== 'profile') ui.view = 'profile';
   document.querySelectorAll('[data-nav]').forEach(b => b.setAttribute('aria-current', b.dataset.nav === ui.view ? 'page' : 'false'));
   const main = $('#main');
-  main.innerHTML = ui.view === 'today' ? viewToday() : ui.view === 'foods' ? viewFoods() : viewProfile();
+  main.innerHTML = ui.view === 'today' ? viewToday() : ui.view === 'foods' ? viewFoods() : ui.view === 'supps' ? viewSupps() : viewProfile();
   if (ui.view === 'profile') syncProfileUnits();
 }
 
@@ -51,9 +63,12 @@ function bar(pct, status) {
 
 function viewToday() {
   const s = store.get();
-  const t = computeTargets(s.profile);
+  const t = targetsFor(ui.date);
   const entries = store.day(ui.date);
-  const tot = sumNutrients(entries.map(e => e.n));
+  const day = store.dayData(ui.date);
+  const foodTot = sumNutrients(entries.map(e => e.n));
+  const suppTot = sumNutrients((day.supps ?? []).map(x => x.n));
+  const tot = sumNutrients([foodTot, suppTot]);
   const remaining = t.kcal - tot.kcal;
   const yesterday = store.day(shiftDate(ui.date, -1));
 
@@ -94,13 +109,17 @@ function viewToday() {
 
   const micros = MICROS.map(def => {
     const target = t.micros[def.key];
-    const { pct, status } = microStatus(def, target, tot[def.key]);
+    const { pct, status } = microStatus(def, target, tot[def.key], suppTot[def.key]);
     const label = def.limit ? 'limit' : '';
+    const foodPct = Math.min(foodTot[def.key] / target.target, 1);
+    const suppPct = Math.min(pct, 1) - foodPct;
+    const ulNote = status === 'over' && !def.limit ? `<span class="small over-note">Above the ${fmt(target.ul)} ${def.unit} upper limit${def.ulScope === 'supplement' ? ' from supplements' : ''}</span>` : '';
     return `<li class="micro">
       <div class="micro-head"><span>${def.label}</span>
         <span class="muted num small">${fmt(tot[def.key])} / ${fmt(target.target)} ${def.unit} ${label}</span>
         <span class="pct s-${status}">${Math.round(pct * 100)}%</span></div>
-      ${bar(pct, status)}
+      <div class="bar s-${status}"><div class="bar-fill" style="width:${foodPct * 100}%"></div>${suppPct > 0.001 ? `<div class="bar-fill supp" style="width:${suppPct * 100}%"></div>` : ''}</div>
+      ${ulNote}
     </li>`;
   }).join('');
 
@@ -110,6 +129,11 @@ function viewToday() {
       <h2>${prettyDate(ui.date)}</h2>
       <button class="icon-btn" data-action="date" data-delta="1" aria-label="Next day">›</button>
     </div>
+    <div class="daytype" role="group" aria-label="Day type">
+      <button data-action="daytype" data-type="training" aria-pressed="${t.dayType === 'training'}">🏋️ Training day</button>
+      <button data-action="daytype" data-type="rest" aria-pressed="${t.dayType === 'rest'}">🛌 Rest day</button>
+    </div>
+    ${t.cycling ? `<p class="muted small daytype-note">${t.dayType === 'training' ? 'Training day: extra carbs to fuel the session.' : 'Rest day: carbs drop toward maintenance needs.'} Your weekly average still matches your target.</p>` : ''}
     <section class="card summary">
       <div class="ring-wrap">
         ${ring(tot.kcal, t.kcal)}
@@ -123,11 +147,123 @@ function viewToday() {
       <button class="training-badge" data-nav="profile"><span class="chip ${emphasisClass(t.training.emphasis)}">${t.training.name} · ${t.training.emphasis}</span>
         <span class="muted small">C ${t.gkg.carbs.toFixed(1)} · P ${t.gkg.protein.toFixed(1)} · F ${t.gkg.fat.toFixed(1)} g/kg</span></button>
     </section>
+    <div class="two-col">${viewWater(t, day)}${viewSuppChecklist(day)}</div>
     ${meals}
     <section class="card">
       <header class="meal-head"><h3>Micronutrients</h3><span class="muted small">vs. your DRI targets</span></header>
       <ul class="micros">${micros}</ul>
-      <p class="muted small legend"><span class="chip s-low">under 50%</span><span class="chip s-mid">50–99%</span><span class="chip s-met">met</span><span class="chip s-over">above limit</span></p>
+      <p class="muted small legend"><span class="chip s-low">under 50%</span><span class="chip s-mid">50–99%</span><span class="chip s-met">met</span><span class="chip s-over">above limit</span><span class="chip supp-chip">from supplements</span></p>
+    </section>`;
+}
+
+function viewWater(t, day) {
+  const total = (day.water ?? []).reduce((a, w) => a + w.ml, 0);
+  const pct = total / t.waterMl;
+  const amounts = imperial() ? [[8, 237], [16, 473], [24, 710]] : [[250, 250], [500, 500], [750, 750]];
+  return `<section class="card water">
+    <header class="meal-head"><h3>💧 Water</h3><span class="muted num small">${fmtWater(total)} / ${fmtWater(t.waterMl)}</span></header>
+    <div class="water-glass" aria-label="${Math.round(pct * 100)}% of water goal"><div class="water-level" style="height:${Math.min(pct, 1) * 100}%"></div>
+      <span class="water-pct num">${Math.round(pct * 100)}%</span></div>
+    <div class="water-actions">
+      ${amounts.map(([label, ml]) => `<button class="btn btn-ghost" data-action="water" data-ml="${ml}">+${label}${imperial() ? ' oz' : ' ml'}</button>`).join('')}
+      ${(day.water ?? []).length ? '<button class="link" data-action="undo-water">Undo</button>' : ''}
+    </div>
+    <p class="muted small">${t.dayType === 'training' ? 'Includes extra water for training. Drink about 400–800 ml (14–27 oz) per hour of exercise.' : 'Baseline: about 35 ml per kg of body weight.'}</p>
+  </section>`;
+}
+
+function viewSuppChecklist(day) {
+  const supps = store.get().supplements.filter(x => x.active !== false);
+  const taken = day.supps ?? [];
+  const doses = supps.flatMap(sp => sp.times.map(time => ({ sp, time }))).sort((a, b) => a.time.localeCompare(b.time));
+  const isToday = ui.date === dateKey(new Date());
+  const now = nowHHMM();
+  const done = doses.filter(d => taken.some(x => x.suppId === d.sp.id && x.time === d.time)).length;
+  return `<section class="card supps">
+    <header class="meal-head"><h3>💊 Supplements</h3><span class="muted num small">${done} / ${doses.length} taken</span></header>
+    ${doses.length ? `<ul class="dose-list">${doses.map(({ sp, time }) => {
+      const isTaken = taken.some(x => x.suppId === sp.id && x.time === time);
+      const due = isToday && !isTaken && time <= now;
+      return `<li class="${isTaken ? 'is-taken' : ''}">
+        <button class="dose-check" data-action="dose" data-id="${sp.id}" data-time="${time}" aria-pressed="${isTaken}" aria-label="Mark ${esc(sp.name)} at ${fmtTime(time)} ${isTaken ? 'not taken' : 'taken'}">${isTaken ? '✓' : ''}</button>
+        <div class="entry-main"><span class="entry-name">${esc(sp.name)}</span>
+          <span class="muted small">${fmtTime(time)} · ${esc(sp.doseLabel)}${sp.withFood ? ' · with food' : ''}</span></div>
+        ${due ? '<span class="chip s-low">due</span>' : ''}
+      </li>`;
+    }).join('')}</ul>` : '<p class="muted small">No supplements yet. Add your stack and they\'ll count toward your micronutrients.</p>'}
+    <button class="btn btn-ghost" data-nav="supps">${doses.length ? 'Manage stack' : '+ Add supplements'}</button>
+  </section>`;
+}
+
+function suppForm(sp) {
+  const v = k => (sp?.n?.[k] ? +sp.n[k].toFixed(3) : '');
+  const times = sp?.times ?? ['08:00'];
+  return `<form id="supp-form" class="form-grid" data-id="${sp?.id ?? ''}">
+    <label class="span-2">Name<input name="name" required maxlength="80" value="${esc(sp?.name ?? '')}" placeholder="e.g. Vitamin D3"></label>
+    <label class="span-2">Dose<input name="doseLabel" maxlength="60" value="${esc(sp?.doseLabel ?? '1 capsule')}"></label>
+    <fieldset class="span-2"><legend>Times per day</legend>
+      <div class="time-row">${[0, 1, 2].map(i => `<input type="time" name="time${i}" value="${times[i] ?? ''}" aria-label="Dose time ${i + 1}">`).join('')}</div>
+      <p class="muted small">Leave extra times blank. Each time is one dose.</p>
+    </fieldset>
+    <label class="span-2 check"><input type="checkbox" name="withFood" ${sp?.withFood ? 'checked' : ''}> Take with food</label>
+    <details class="span-2" ${sp ? 'open' : ''}><summary>Nutrients per dose (from the label)</summary>
+      <div class="form-grid">${MICROS.filter(m => m.key !== 'fiber').map(m =>
+        `<label>${m.label} <span class="muted">(${m.unit})</span><input type="number" step="any" min="0" name="${m.key}" value="${v(m.key)}"></label>`).join('')}</div>
+      <p class="muted small">Vitamin D: 1,000 IU = 25 µg. Vitamin A: 1 µg RAE = 3.33 IU retinol.</p>
+    </details>
+    <div class="span-2 row-actions">
+      <button class="btn btn-primary" type="submit">${sp ? 'Save changes' : 'Add to stack'}</button>
+      <button class="btn btn-ghost" type="button" data-action="cancel-supp">Cancel</button>
+    </div>
+  </form>`;
+}
+
+function viewSupps() {
+  const s = store.get();
+  const t = targetsFor(ui.date);
+  const editing = ui.suppEdit;
+  if (editing) {
+    const sp = editing === 'new' ? ui.suppDraft : s.supplements.find(x => x.id === editing);
+    return `<h2 class="view-title">${editing === 'new' || !sp?.id ? 'Add supplement' : 'Edit supplement'}</h2><section class="card">${suppForm(sp)}</section>`;
+  }
+  const { totals, warnings } = analyzeStack(s.supplements, t);
+  const list = s.supplements.map(sp => {
+    const tips = timingAdvice(sp);
+    const contents = MICROS.filter(m => sp.n[m.key] > 0).map(m => `${m.label} ${fmt(sp.n[m.key])} ${m.unit}`).join(' · ');
+    return `<li class="supp-item ${sp.active === false ? 'is-paused' : ''}">
+      <div class="supp-top">
+        <div class="entry-main"><span class="entry-name">${esc(sp.name)}</span>
+          <span class="muted small">${esc(sp.doseLabel)} · ${sp.times.map(fmtTime).join(', ')}${sp.withFood ? ' · with food' : ''}</span>
+          ${contents ? `<span class="small">${contents}</span>` : ''}</div>
+        <div class="supp-btns">
+          <button class="btn btn-ghost" data-action="edit-supp" data-id="${sp.id}">Edit</button>
+          <button class="btn btn-ghost" data-action="pause-supp" data-id="${sp.id}">${sp.active === false ? 'Resume' : 'Pause'}</button>
+          <button class="icon-btn" data-action="delete-supp" data-id="${sp.id}" aria-label="Delete ${esc(sp.name)}">✕</button>
+        </div>
+      </div>
+      ${tips.length ? `<ul class="tips small">${tips.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+    </li>`;
+  }).join('');
+  const coverage = MICROS.filter(m => totals[m.key] > 0).map(m => {
+    const tg = t.micros[m.key];
+    const pct = totals[m.key] / tg.target;
+    return `<tr><th scope="row">${m.label}</th><td class="num">${fmt(totals[m.key])} ${m.unit}</td><td class="num">${Math.round(pct * 100)}%</td><td class="num muted">${tg.ul ? fmt(tg.ul) + ' ' + m.unit : '—'}</td></tr>`;
+  }).join('');
+  const owned = new Set(s.supplements.map(x => x.tid));
+  return `
+    <h2 class="view-title">Supplements</h2>
+    ${warnings.length ? `<section class="card warn-card"><h3>Check your stack</h3>${warnings.map(w => `<p class="note">${esc(w)}</p>`).join('')}</section>` : ''}
+    <section class="card">
+      <header class="meal-head"><h3>My stack</h3><button class="btn btn-primary" data-action="new-supp">+ Custom</button></header>
+      ${list ? `<ul class="supp-list">${list}</ul>` : '<p class="muted">Nothing yet. Start from a common supplement below or add a custom one from your label.</p>'}
+    </section>
+    ${coverage ? `<section class="card"><h3>Daily stack totals</h3><p class="muted small">If every dose is taken, before food.</p>
+      <div class="table-wrap"><table><thead><tr><th></th><th>Amount</th><th>% of target</th><th>Upper limit</th></tr></thead><tbody>${coverage}</tbody></table></div></section>` : ''}
+    <section class="card">
+      <h3>Common supplements</h3>
+      <p class="muted small">These are typical strengths. Tap one, then edit it to match your label.</p>
+      <div class="template-grid">${SUPP_TEMPLATES.map(tp => `<button class="template" data-action="template" data-tid="${tp.tid}" ${owned.has(tp.tid) ? 'disabled' : ''}>
+        <strong>${tp.name}</strong><span class="muted small">${tp.doseLabel}${owned.has(tp.tid) ? ' · added' : ''}</span></button>`).join('')}</div>
     </section>`;
 }
 
@@ -203,6 +339,10 @@ function viewProfile() {
       <fieldset class="span-2 seg"><legend>Training load</legend>
         ${Object.entries(LOADS).map(([k, v]) => `<label><input type="radio" name="trainingLoad" value="${k}" ${k === (p.trainingLoad || 'moderate') ? 'checked' : ''}> ${v.label} <span class="muted small">${v.detail}</span></label>`).join('')}
       </fieldset>
+      <fieldset class="span-2 seg days"><legend>Usual training days <span class="muted small">(you can switch any day on the Today screen)</span></legend>
+        ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => `<label><input type="checkbox" name="trainingDays" value="${i}" ${(p.trainingDays ?? DEFAULT_TRAINING_DAYS).includes(i) ? 'checked' : ''}> ${d}</label>`).join('')}
+      </fieldset>
+      <label class="span-2 check"><input type="checkbox" name="carbCycling" ${p.carbCycling !== false ? 'checked' : ''}> Carb cycling: more carbs on training days, fewer on rest days, same weekly total</label>
       <details class="span-2"><summary>Manual overrides (leave blank for automatic)</summary>
         <div class="form-grid">
           <label>Calories<input name="o_kcal" type="number" min="800" value="${o.kcal ?? ''}"></label>
@@ -223,6 +363,14 @@ function viewProfile() {
       </div>
       ${t.floorApplied ? '<p class="note">Your target was raised to the minimum safe floor. Use a manual override only with professional guidance.</p>' : ''}
       ${t.notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}
+      ${(() => {
+        const tt = dayTargets(p, true), rt = dayTargets(p, false);
+        if (!tt.cycling) return '';
+        return `<div class="table-wrap"><table><thead><tr><th>Carb cycling</th><th>Calories</th><th>Carbs</th><th>Protein</th><th>Fat</th><th>Water</th></tr></thead><tbody>
+          <tr><th scope="row">🏋️ Training day</th><td class="num">${tt.kcal.toLocaleString()}</td><td class="num">${tt.carbs} g <span class="muted">(${tt.gkg.carbs.toFixed(1)}/kg)</span></td><td class="num">${tt.protein} g</td><td class="num">${tt.fat} g</td><td class="num">${fmtWater(tt.waterMl)}</td></tr>
+          <tr><th scope="row">🛌 Rest day</th><td class="num">${rt.kcal.toLocaleString()}</td><td class="num">${rt.carbs} g <span class="muted">(${rt.gkg.carbs.toFixed(1)}/kg)</span></td><td class="num">${rt.protein} g</td><td class="num">${rt.fat} g</td><td class="num">${fmtWater(rt.waterMl)}</td></tr>
+        </tbody></table></div>`;
+      })()}
     </section>
     ${viewTrainingCard(t)}
     <section class="card">
@@ -407,11 +555,34 @@ function renderQuickAdd() {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-action], [data-nav]');
   if (!el) return;
-  if (el.dataset.nav) { ui.view = el.dataset.nav; render(); window.scrollTo(0, 0); return; }
+  if (el.dataset.nav) { ui.view = el.dataset.nav; ui.suppEdit = null; render(); window.scrollTo(0, 0); return; }
   const a = el.dataset.action;
   if (a === 'close-modal') { if (el.classList.contains('backdrop') && e.target !== el) return; closeModal(); }
   else if (a === 'date') { ui.date = shiftDate(ui.date, +el.dataset.delta); render(); }
   else if (a === 'open-add') openAdd(el.dataset.meal);
+  else if (a === 'daytype') { store.setDayType(ui.date, el.dataset.type); render(); }
+  else if (a === 'water') { store.addWater(ui.date, +el.dataset.ml); render(); }
+  else if (a === 'undo-water') { store.undoWater(ui.date); render(); }
+  else if (a === 'dose') {
+    const sp = store.get().supplements.find(x => x.id === el.dataset.id);
+    if (sp) { store.toggleDose(ui.date, sp, el.dataset.time); render(); }
+  }
+  else if (a === 'new-supp') { ui.suppEdit = 'new'; ui.suppDraft = null; render(); window.scrollTo(0, 0); }
+  else if (a === 'template') {
+    const tp = SUPP_TEMPLATES.find(x => x.tid === el.dataset.tid);
+    ui.suppEdit = 'new'; ui.suppDraft = structuredClone(tp); render(); window.scrollTo(0, 0);
+  }
+  else if (a === 'edit-supp') { ui.suppEdit = el.dataset.id; render(); window.scrollTo(0, 0); }
+  else if (a === 'cancel-supp') { ui.suppEdit = null; render(); }
+  else if (a === 'pause-supp') {
+    const sp = store.get().supplements.find(x => x.id === el.dataset.id);
+    store.saveSupplement({ ...sp, active: sp.active === false }); render();
+  }
+  else if (a === 'delete-supp') {
+    if (confirm('Remove this supplement from your stack? Doses already logged are kept.')) {
+      store.update(s => { s.supplements = s.supplements.filter(x => x.id !== el.dataset.id); }); render();
+    }
+  }
   else if (a === 'remove-entry') { store.removeEntry(ui.date, el.dataset.id); render(); }
   else if (a === 'copy-meal') {
     const meal = el.dataset.meal;
@@ -483,6 +654,8 @@ document.addEventListener('submit', e => {
       goal: form.goal.value,
       trainingType: form.trainingType.value,
       trainingLoad: form.trainingLoad.value,
+      trainingDays: [...form.querySelectorAll('[name=trainingDays]:checked')].map(x => +x.value),
+      carbCycling: form.carbCycling.checked,
       overrides: { kcal: opt('o_kcal'), protein: opt('o_protein'), carbs: opt('o_carbs'), fat: opt('o_fat') },
     };
     if (profile.age < 18 || profile.weightKg < 30 || profile.heightCm < 120) { alert('Please check your age, weight and height.'); return; }
@@ -502,6 +675,22 @@ document.addEventListener('submit', e => {
       servings: [{ label: form.servingLabel.value.trim() || '1 serving', g }], per100,
     }));
     render(); toast('Food saved');
+  }
+
+  if (form.id === 'supp-form') {
+    const times = [0, 1, 2].map(i => form[`time${i}`].value).filter(Boolean);
+    if (!times.length) { alert('Add at least one time.'); return; }
+    const nn = emptyNutrients();
+    for (const m of MICROS) nn[m.key] = num(m.key);
+    const existing = store.get().supplements.find(x => x.id === form.dataset.id);
+    const keep = existing?.n ?? ui.suppDraft?.n;
+    if (keep) { nn.kcal = keep.kcal || 0; nn.fat = keep.fat || 0; }
+    store.saveSupplement({
+      ...(existing ?? {}), id: existing?.id ?? 's-' + uid(), tid: existing?.tid ?? ui.suppDraft?.tid,
+      name: form.name.value.trim(), doseLabel: form.doseLabel.value.trim() || '1 dose',
+      times: [...new Set(times)].sort(), withFood: form.withFood.checked, n: nn, active: existing?.active ?? true,
+    });
+    ui.suppEdit = null; ui.suppDraft = null; render(); toast('Stack updated');
   }
 
   if (form.id === 'quick-form') {

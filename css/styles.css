@@ -198,3 +198,50 @@ tbody th { font-weight: 600; white-space: nowrap; }
 .tips { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; font-size: .9rem; }
 .seg .muted { font-weight: 400; }
 td.num, .chip { white-space: nowrap; }
+
+/* Stage 2: day type, water, supplements */
+.bar { display: flex; }
+.bar[class*="s-"] .bar-fill { background: var(--c); }
+.bar-fill { flex: none; }
+.bar-fill + .bar-fill { border-radius: 0 999px 999px 0; }
+.bar-fill.supp { opacity: .5; background-image: repeating-linear-gradient(45deg, transparent 0 3px, rgb(255 255 255 / .35) 3px 6px); }
+.supp-chip { --c: var(--muted); }
+.over-note { color: var(--over); display: block; margin-top: 3px; }
+.daytype { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--surface-2); padding: 4px; border-radius: 12px; }
+.daytype button { border: 0; background: none; padding: 8px; border-radius: 9px; font-weight: 600; cursor: pointer; color: var(--muted); }
+.daytype button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.daytype-note { margin: -6px 0 0; text-align: center; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+.water-glass { position: relative; height: 84px; border-radius: 12px; background: var(--surface-2); overflow: hidden; margin-bottom: 10px; }
+.water-level { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, #5fb3e8, #2f86c8); transition: height .5s ease; }
+.water-pct { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: 1.3rem; }
+.water-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+.water-actions .btn { padding: 7px 10px; font-size: .88rem; }
+.water p, .supps p { margin: 4px 0 0; }
+.dose-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.dose-list li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); }
+.dose-list li:first-child { border-top: 0; }
+.dose-list li.is-taken .entry-name { text-decoration: line-through; color: var(--muted); }
+.dose-check { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); background: none; cursor: pointer; font-weight: 700; color: var(--accent-ink); }
+.dose-check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+.supp-list { list-style: none; margin: 0; padding: 0; }
+.supp-item { padding: 12px 0; border-top: 1px solid var(--border); }
+.supp-item:first-child { border-top: 0; }
+.supp-item.is-paused { opacity: .55; }
+.supp-top { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.supp-top .entry-main { min-width: 180px; }
+.supp-top .entry-name { white-space: normal; }
+.supp-btns { display: flex; gap: 6px; align-items: center; }
+.supp-btns .btn { padding: 6px 10px; font-size: .85rem; }
+.supp-item .tips { margin: 8px 0 0; color: var(--muted); }
+.template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.template { text-align: left; border: 1px solid var(--border); background: var(--bg); border-radius: 10px; padding: 10px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.template:hover:not(:disabled) { border-color: var(--accent); }
+.template:disabled { opacity: .5; cursor: default; }
+.warn-card { border-color: var(--low); }
+.time-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+label.check input { width: auto; accent-color: var(--accent); }
+.days label { padding: 6px 10px; }
+@media (max-width: 640px) { .nav button { padding: 8px 4px; font-size: .9rem; } }

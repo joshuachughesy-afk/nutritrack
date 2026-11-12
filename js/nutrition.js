@@ -173,3 +173,38 @@ export function fmt(v, unit) {
   const s = abs < 0.005 ? '0' : abs >= 100 ? Math.round(v).toLocaleString() : abs >= 10 ? v.toFixed(0) : abs >= 1 ? trim(v.toFixed(1)) : trim(v.toFixed(2));
   return unit ? `${s} ${unit}` : s;
 }
+
+export const DEFAULT_TRAINING_DAYS = [1, 2, 4, 5, 6]; // Mon, Tue, Thu, Fri, Sat
+export const ML_PER_OZ = 29.5735;
+
+/*
+ * Day-specific targets with carb periodization ("fuel for the work required").
+ * Rest days drop carbs toward the low end; the saved carbs move to training days,
+ * so the weekly average still matches your calorie target. Protein and fat stay constant.
+ */
+export function dayTargets(p, isTraining) {
+  const base = computeTargets(p);
+  if (!base) return null;
+  const w = p.weightKg;
+  const days = p.trainingDays ?? DEFAULT_TRAINING_DAYS;
+  const nT = days.length, nR = 7 - nT;
+  const tr = base.training;
+  const carbForward = !tr.emphasis.startsWith('Balanced') && !tr.emphasis.startsWith('Protein');
+  const restGkg = carbForward ? Math.max(3, tr.carbs[0] - 1) : tr.carbs[0];
+  const restCarbs = Math.min(base.carbs, Math.round(restGkg * w));
+  const delta = base.carbs - restCarbs;
+  const cycling = p.carbCycling !== false && nT > 0 && nR > 0 && delta > 0 && !p.overrides?.carbs && !p.overrides?.kcal;
+
+  let { carbs, kcal } = base;
+  if (cycling) {
+    if (isTraining) { const add = Math.round((delta * nR) / nT); carbs += add; kcal += add * 4; }
+    else { carbs = restCarbs; kcal -= delta * 4; }
+  }
+  const loadExtra = { low: 350, moderate: 500, high: 650, peak: 800 }[p.trainingLoad] ?? 500;
+  const waterMl = Math.round((35 * w + (isTraining ? loadExtra : 0)) / 50) * 50;
+  return {
+    ...base, carbs, kcal, cycling, dayType: isTraining ? 'training' : 'rest', waterMl,
+    gkg: { ...base.gkg, carbs: carbs / w },
+    micros: { ...base.micros, fiber: { target: Math.round((base.kcal / 1000) * 14) } },
+  };
+}
