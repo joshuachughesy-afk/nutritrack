@@ -13,7 +13,54 @@ STATUS_COLORS = {"low": "#e08a2b", "mid": "#d1b43a", "met": "#2f9a5a", "ok-limit
                  "none": "#8a948f", "behind": "#e08a2b", "on": "#2f9a5a", "ahead": "#d1b43a", "early": "#8a948f"}
 EMPHASIS_COLORS = {"Carb": MACRO_COLORS["carbs"], "Protein": MACRO_COLORS["protein"], "Balanced": ACCENT}
 FIRE = "#f2622e"
+SHIELD = "#4c7cf0"
+EARTH = "#8a6a4a"
 MUTED = ft.Colors.ON_SURFACE_VARIANT
+
+# Brand colours that change in dark mode. App.render() calls set_mode() before building a screen, so code that reads
+# th.ACCENT at build time gets a green that stays readable on dark cards.
+_LIGHT = {"ACCENT": "#1f7a4d", "ACCENT_SOFT": "#5fbf86"}
+_DARK = {"ACCENT": "#6fd39a", "ACCENT_SOFT": "#3f9a68"}
+DARK = False
+
+
+def set_mode(dark: bool) -> None:
+    global ACCENT, ACCENT_SOFT, DARK
+    DARK = dark
+    vals = _DARK if dark else _LIGHT
+    ACCENT, ACCENT_SOFT = vals["ACCENT"], vals["ACCENT_SOFT"]
+    MACRO_COLORS["kcal"] = ACCENT
+    EMPHASIS_COLORS["Balanced"] = ACCENT
+    for k in ("met", "ok-limit", "on"):
+        STATUS_COLORS[k] = "#4cc27f" if dark else "#2f9a5a"
+
+
+def ink(color: str) -> str:
+    """A text-safe version of a brand/status colour: darker on light backgrounds, lighter on dark ones (WCAG AA)."""
+    if not color.startswith("#") or len(color) != 7:
+        return color
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    if DARK:
+        r, g, b = (round(c + (255 - c) * 0.35) for c in (r, g, b))
+    else:
+        r, g, b = (round(c * 0.55) for c in (r, g, b))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+# ---------- tokens ----------
+class T:
+    """Type scale. Nothing smaller than CAPTION (12)."""
+    DISPLAY, TITLE, HEADLINE, BODY, LABEL, CAPTION = 30, 24, 18, 15, 13, 12
+
+
+class S:
+    """Spacing scale."""
+    XS, SM, MD, LG, XL = 4, 8, 12, 16, 24
+
+
+class R:
+    """Corner radii."""
+    SM, MD, LG, PILL = 10, 14, 22, 999
 
 FONT, FONT_SEMI, FONT_BOLD = "Jakarta", "JakartaSemi", "JakartaBold"
 FONTS = {FONT: "fonts/PlusJakartaSans-Regular.ttf", FONT_SEMI: "fonts/PlusJakartaSans-SemiBold.ttf",
@@ -56,12 +103,17 @@ def display(text: str, size: int = 28, color=None, **kw) -> ft.Text:
     return ft.Text(text, size=size, font_family=FONT_BOLD, color=color, **kw)
 
 
-def title(text: str, size: int = 24) -> ft.Text:
+def title(text: str, size: int = T.TITLE) -> ft.Text:
     return ft.Text(text, size=size, font_family=FONT_BOLD)
 
 
-def muted(text: str, size: int = 13, **kw) -> ft.Text:
-    return ft.Text(text, size=size, color=MUTED, **kw)
+def muted(text: str, size: float = T.LABEL, **kw) -> ft.Text:
+    return ft.Text(text, size=max(T.CAPTION, size), color=MUTED, **kw)
+
+
+def label(text: str, **kw) -> ft.Text:
+    """In-card section label (level 2): 13 semibold, sentence case."""
+    return ft.Text(text, size=T.LABEL, font_family=FONT_SEMI, **kw)
 
 
 # ---------- surfaces ----------
@@ -77,19 +129,25 @@ def card(*controls: ft.Control, padding: int = 18, spacing: int = 10, bgcolor=No
     )
 
 
-def heading(text: str, trailing: ft.Control | None = None, size: int = 17, icon=None, icon_color=None) -> ft.Control:
-    t: ft.Control = ft.Text(text, size=size, font_family=FONT_SEMI)
+def heading(text: str, trailing: ft.Control | str | None = None, size: int = 17, icon=None, icon_color=None) -> ft.Control:
+    """Card title (level 1): icon tile + title, optional trailing control or muted text that ellipsises, never clips."""
+    t: ft.Control = ft.Text(text, size=size, font_family=FONT_SEMI, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
     if icon is not None:
-        t = ft.Row([ft.Container(ft.Icon(icon, size=size + 1, color=icon_color or ACCENT), padding=6, border_radius=10,
-                                 bgcolor=ft.Colors.with_opacity(0.12, icon_color or ACCENT)), t], spacing=10, tight=True)
+        col = icon_color or ACCENT
+        t = ft.Row([ft.Container(ft.Icon(icon, size=size + 1, color=col), padding=6, border_radius=R.SM,
+                                 bgcolor=ft.Colors.with_opacity(0.14, col)), t], spacing=10, tight=True)
     if trailing is None:
         return t
+    if isinstance(trailing, str):
+        trailing = muted(trailing, T.CAPTION, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, text_align=ft.TextAlign.RIGHT)
+        return ft.Row([t, ft.Container(trailing, expand=True, alignment=ft.Alignment.CENTER_RIGHT)], spacing=8,
+                      vertical_alignment=ft.CrossAxisAlignment.CENTER)
     return ft.Row([t, trailing], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
 
 # ---------- data marks ----------
 def bar(fraction: float, color: str, height: int = 8, extra: float = 0, extra_color: str | None = None,
-        key: str | None = None) -> ft.Control:
+        key: str | None = None, marker: float | None = None) -> ft.Control:
     """Rounded progress bar. With a `key` it animates from its previous value; `extra` adds a lighter second segment.
 
     The bar measures its own width (on_size_change) and animates the fill's pixel width. Flet's implicit scale
@@ -110,6 +168,12 @@ def bar(fraction: float, color: str, height: int = 8, extra: float = 0, extra_co
     if total - f > 0.001:
         layers.append(fill(total, ft.Colors.with_opacity(0.4, extra_color or color), f"{key}:x" if key else None))
     layers.append(fill(f, color, key))
+    pin = None
+    if marker is not None:  # "where you'd expect to be by now"
+        m = max(0.0, min(1.0, marker))
+        pin = ft.Container(width=3, height=height + 6, bgcolor=ft.Colors.ON_SURFACE, border_radius=2, left=0, top=0,
+                           tooltip="Expected by now", data=m)
+        layers.append(pin)
 
     def sized(e) -> None:
         width = getattr(e, "width", None) or 0
@@ -119,20 +183,27 @@ def bar(fraction: float, color: str, height: int = 8, extra: float = 0, extra_co
             c.width = width * value
             if k:
                 motion.remember_width(k, width, value)
+        if pin is not None:
+            pin.left = max(0.0, min(width - 3, width * pin.data - 1.5))
         try:
             track.update()
-        except Exception:
-            pass
+        except Exception:  # the bar left the page before its size arrived
+            motion.log.debug("bar update skipped", exc_info=True)
 
     track = ft.Container(ft.Stack(layers, alignment=ft.Alignment.CENTER_LEFT), height=height, border_radius=999,
                          bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST, clip_behavior=ft.ClipBehavior.HARD_EDGE,
                          on_size_change=sized, expand=True)
+    if pin is not None:  # the pin sticks out a little above and below the bar
+        pin.top = 0
+        pin.height = height
+        track.clip_behavior = ft.ClipBehavior.NONE
+        track.border_radius = 999
     return ft.Row([track], spacing=0)
 
 
-def chip(text: str, color: str, size: int = 11) -> ft.Container:
-    return ft.Container(content=ft.Text(text, size=size, font_family=FONT_SEMI, color=color),
-                        bgcolor=ft.Colors.with_opacity(0.14, color), border_radius=999,
+def chip(text: str, color: str, size: int = T.CAPTION) -> ft.Container:
+    return ft.Container(content=ft.Text(text, size=max(T.CAPTION, size), font_family=FONT_SEMI, color=ink(color)),
+                        bgcolor=ft.Colors.with_opacity(0.16, color), border_radius=999,
                         padding=ft.Padding.symmetric(horizontal=9, vertical=3))
 
 

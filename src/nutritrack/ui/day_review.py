@@ -8,6 +8,7 @@ import flet as ft
 
 from ..core.garden import TREE_DAY
 from ..core.nutrition import MACROS, fmt
+from ..core.pacing import MEAL_LABELS
 from ..core.recipes import Plan
 from ..service import today_key
 from ..store import new_id
@@ -18,7 +19,7 @@ from .tree_view import tree_src
 if TYPE_CHECKING:
     from .app import App
 
-MEALS = [("breakfast", "Breakfast"), ("lunch", "Lunch"), ("dinner", "Dinner"), ("snacks", "Snacks")]
+MEALS = list(MEAL_LABELS.items())
 
 
 def ask_plan_name(app: "App", title: str, default: str, on_save) -> None:
@@ -43,8 +44,8 @@ def save_entries_as_plan(app: "App", entries: list[dict], kind: str, default: st
     def done(name: str) -> None:
         app.store.save_plan(Plan.from_entries(new_id("p-"), name, kind, entries))
         motion.haptic("light")
-        app.toast(f"Saved “{name}” to Meal plans")
-    ask_plan_name(app, "Save as meal plan" if kind == "meal" else "Save day as plan", default, done)
+        app.toast(f"Saved “{name}”. Find it in Foods → Saved meals and in Add food.")
+    ask_plan_name(app, "Save this meal" if kind == "meal" else "Save this day", default, done)
 
 
 def open_review(app: "App", key: str) -> None:
@@ -114,7 +115,7 @@ def open_review(app: "App", key: str) -> None:
 
     actions: list[ft.Control] = [ft.FilledButton("Open this day", icon=ft.Icons.OPEN_IN_NEW, on_click=open_day)]
     if r["entries"]:
-        actions += [ft.OutlinedButton("Save as plan", icon=ft.Icons.BOOKMARK_ADD_OUTLINED,
+        actions += [ft.OutlinedButton("Save day", icon=ft.Icons.BOOKMARK_ADD_OUTLINED,
                                       on_click=lambda _: save_entries_as_plan(app, r["entries"], "day", d.strftime("%A %d %b"))),
                     ft.TextButton("Log again today", icon=ft.Icons.REPLAY, on_click=copy_today)]
 

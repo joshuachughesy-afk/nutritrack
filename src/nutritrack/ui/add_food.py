@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from typing import TYPE_CHECKING
 
 import flet as ft
@@ -10,42 +11,74 @@ from ..core import barcode as bc
 from ..core import online
 from ..core.foods import Food
 from ..core.nutrition import MICROS, empty_nutrients, fmt, scale_nutrients
+from ..core.pacing import MEAL_LABELS
+from ..diagnostics import log
+from ..service import today_key
+from . import motion
 from . import theme as th
 
 if TYPE_CHECKING:
     from .app import App
 
-MEAL_LABELS = {"breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner", "snacks": "Snacks"}
 
 
 def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | None = None) -> None:
     """Add food to a meal, or (with `edit`) change a logged entry's amount, unit or meal."""
     content = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
+    height = min(680, max(480, int((getattr(app.page, "height", None) or 760) * 0.88)))
     sheet = ft.BottomSheet(
-        content=ft.Container(content=content, padding=ft.Padding.only(left=16, right=16, top=8, bottom=24), height=620),
+        content=ft.Container(content=content, padding=ft.Padding.only(left=16, right=16, top=8, bottom=24), height=height),
         show_drag_handle=True, scrollable=True, draggable=True)
+    day_note = "" if app.date == today_key() else f" · {date.fromisoformat(app.date).strftime('%a %d %b')}"
 
     def close():
         app.page.pop_dialog()
 
     def header(title: str, back: bool = False) -> ft.Control:
         left = [ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: picker(), tooltip="Back to search")] if back else []
-        return ft.Row(left + [ft.Text(title, size=18, font_family=th.FONT_BOLD, expand=True),
+        return ft.Row(left + [ft.Text(title, size=th.T.HEADLINE, font_family=th.FONT_BOLD, expand=True, max_lines=2,
+                                      overflow=ft.TextOverflow.ELLIPSIS),
                               ft.IconButton(ft.Icons.CLOSE, on_click=lambda _: close(), tooltip="Close")])
 
+    def logged(name: str, entry_id: str, target_meal: str) -> None:
+        """Every add confirms itself and can be undone."""
+        motion.haptic("light")
+        close()
+        app.render()
+        app.toast(f"Added {name} to {MEAL_LABELS[target_meal].lower()}",
+                  undo=lambda: app.store.remove_entry(entry_id))
+
     # ---------- search ----------
-    results = ft.Column(spacing=0)
+    results = ft.Column(spacing=2)
+    BADGES = {"OFF": ("Brand label", "#8a6a4a"), "recipe": ("Recipe", th.ACCENT), "custom": ("My food", th.SHIELD)}
 
-    SOURCE_TAGS = {"custom": "custom", "OFF": "Open Food Facts", "USDA": "USDA", "recipe": "recipe"}
+    def badge(f: Food) -> ft.Control | None:
+        if f.source == "USDA" and f.id.startswith("usda-"):
+            return th.chip("✓ Verified", th.STATUS_COLORS["met"])
+        if f.source in BADGES:
+            return th.chip(*BADGES[f.source])
+        return None
 
-    def result_tile(f: Food, fetch_full: bool = False) -> ft.Control:
+    def food_row(f: Food, fetch_full: bool = False, last: tuple[float, str] | None = None) -> ft.Control:
         sv = f.servings[0]
-        online_usda = f.source == "USDA" and f.id.startswith("usda-")   # built-in foods are USDA-derived but untagged
-        tag = f"  · {SOURCE_TAGS[f.source]}" if f.source in SOURCE_TAGS and (f.source != "USDA" or online_usda) else ""
-        return ft.ListTile(title=ft.Text(f.name, size=14),
-                           subtitle=th.muted(f"{sv.label} · {fmt(f.per100['kcal'] * sv.g / 100)} kcal{tag}", 12),
-                           dense=True, on_click=lambda _, food=f: (app.page.run_task(open_full, food) if fetch_full
-                                                                   else detail(food)))
+        grams, label = last if last else (sv.g, sv.label)
+        kcal = fmt(f.per100["kcal"] * grams / 100)
+        b = badge(f)
+
+        def quick_log(_):
+            eid = app.store.add_entry(app.date, meal, f.name, scale_nutrients(f.per100, grams), food_id=f.id, grams=grams,
+                                      amount_label=label)
+            logged(f.name, eid, meal)
+
+        return ft.Container(ft.Row([
+            ft.Column([ft.Text(f.name, size=th.T.BODY - 1, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                       ft.Row([th.muted(f"{label} · {kcal} kcal", th.T.CAPTION), *([b] if b else [])], spacing=6, wrap=True)],
+                      spacing=2, expand=True),
+            *([ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=th.ACCENT, tooltip=f"Log {label} now", on_click=quick_log)]
+              if last else [ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, color=th.MUTED, size=18)]),
+        ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=ft.Padding.symmetric(horizontal=4, vertical=8), border_radius=th.R.SM, ink=True,
+            on_click=lambda _, food=f: (app.page.run_task(open_full, food) if fetch_full else detail(food)))
 
     async def open_full(f: Food) -> None:
         """Search hits carry fewer nutrients than the product page, so fetch the full product before showing it."""
@@ -54,54 +87,80 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
         try:
             full = await asyncio.to_thread(app.svc.full_food, f)
         except Exception:
+            log.exception("loading full product failed")
             full = None
         detail(full or f)
 
-    status = th.muted("", 12)
-    online_results = ft.Column(spacing=0)
-    query = {"q": "", "source": "off"}
+    status = th.muted("", th.T.CAPTION)
+    online_head = ft.Column(spacing=4)
+    online_results = ft.Column(spacing=2)
+    query = {"q": "", "token": 0, "done": set()}
 
-    async def search_online(_=None) -> None:
+    async def search_online(source: str = "off", auto: bool = False) -> None:
         q = query["q"].strip()
-        if len(q) < 2:
-            status.value = "Type at least 2 letters, then search online."
-            app.page.update(); return
-        status.value = f"Searching {'USDA' if query['source'] == 'usda' else 'Open Food Facts'}…"
-        online_results.controls = [_skeleton() for _ in range(4)]
+        if len(q) < 2 or (q, source) in query["done"]:
+            return
+        query["done"].add((q, source))
+        status.value = "Searching " + ("lab-verified foods…" if source == "usda" else "brands…")
+        if source == "off":
+            online_results.controls = [_skeleton() for _ in range(3)]
         app.page.update()
         try:
-            hits = await asyncio.to_thread(app.svc.search_online, q, query["source"])
-            status.value = (f"{len(hits)} results. Values are from "
-                            + ("USDA FoodData Central (lab-measured)." if query["source"] == "usda"
-                               else "Open Food Facts (crowd-sourced, so check against the label)."))
-            online_results.controls = [result_tile(f, fetch_full=True) for f in hits] or \
-                [th.muted("No results online either. Create it under Foods.", 13)]
+            hits = await asyncio.to_thread(app.svc.search_online, q, source)
         except Exception as ex:
-            status.value = f"Couldn't search online: {ex}"
-            online_results.controls = []
+            log.exception("online search failed")
+            status.value = f"Couldn't search online ({ex}). Check your connection."
+            app.page.update()
+            return
+        if query["q"].strip() != q:  # the user kept typing
+            return
+        rows = [food_row(f, fetch_full=True) for f in hits]
+        if source == "usda":  # add verified results after the brand ones
+            online_results.controls = query.get("off_rows", []) + rows
+            more.visible = False
+        else:
+            query["off_rows"] = rows
+            online_results.controls = rows
+            more.visible = (q, "usda") not in query["done"]
+        status.value = "" if online_results.controls else f"Nothing online for “{q}”. Try fewer words, or create it under Foods."
         app.page.update()
+
+    more = ft.TextButton("More results from USDA (lab-verified)", icon=ft.Icons.VERIFIED_OUTLINED, visible=False,
+                         on_click=lambda _: app.page.run_task(search_online, "usda"))
+
+    async def debounced(token: int) -> None:
+        await asyncio.sleep(0.6)
+        if token == query["token"]:
+            await search_online("off", auto=True)
 
     def fill_results(q: str) -> None:
         tokens = [t for t in q.lower().split() if t]
         foods = app.svc.all_foods()
         items: list[ft.Control] = []
         if not tokens:
+            online_head.controls, online_results.controls, status.value, more.visible = [], [], "", False
             meal_plans = [p for p in app.store.plans() if p.kind == "meal"]
             if meal_plans:
-                items.append(th.muted("SAVED MEALS", 11, font_family=th.FONT_SEMI))
-                items.append(ft.Row([ft.Chip(label=ft.Text(f"{p.name} · {fmt(p.totals()['kcal'])} kcal", size=12),
+                items.append(th.label("Saved meals"))
+                items.append(ft.Row([ft.Chip(label=ft.Text(f"{p.name} · {fmt(p.totals()['kcal'])} kcal", size=th.T.CAPTION),
                                              leading=ft.Icon(ft.Icons.BOOKMARK, size=16),
                                              on_click=lambda _, p=p: log_plan(p)) for p in meal_plans[:8]],
                                     wrap=True, spacing=6, run_spacing=6))
             recents = [f for f in (app.svc.find_food(i) for i in app.store.recents()) if f]
             if recents:
-                items.append(th.muted("RECENT", 11, font_family=th.FONT_SEMI))
-                items += [result_tile(f) for f in recents]
-            items.append(th.muted("ALL FOODS", 11, font_family=th.FONT_SEMI))
-            items += [result_tile(f) for f in sorted(foods, key=lambda f: f.name)]
+                last = app.store.last_amounts([f.id for f in recents])
+                items.append(ft.Row([th.label("Recent"), th.muted("tap + to log the same amount again", th.T.CAPTION)],
+                                    spacing=8, wrap=True))
+                items += [food_row(f, last=last.get(f.id)) for f in recents]
+            items.append(th.label("Common foods"))
+            items += [food_row(f) for f in sorted(foods, key=lambda f: f.name)]
         else:
             hits = [f for f in foods if all(t in f.name.lower() or t in f.category.lower() for t in tokens)]
-            items = [result_tile(f) for f in hits] or [th.muted(f"Nothing saved matches “{q}”. Search online below, or create it under Foods.", 13)]
+            items = [th.label("Your foods")] + [food_row(f) for f in hits] if hits else []
+            online_head.controls = [th.label("Online")]
+            query["token"] += 1
+            if len(q.strip()) >= 2:
+                app.page.run_task(debounced, query["token"])
         results.controls = items
 
     def log_plan(plan) -> None:
@@ -116,26 +175,15 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
             fill_results(e.control.value)
             app.page.update()
 
-        search = ft.TextField(hint_text=f"Search {len(app.svc.all_foods())} foods…", prefix_icon=ft.Icons.SEARCH,
+        search = ft.TextField(hint_text="Search foods and brands", prefix_icon=ft.Icons.SEARCH, expand=True,
                               autofocus=True, dense=True, border_radius=12, on_change=on_change,
-                              on_submit=lambda _: app.page.run_task(search_online), value=query["q"])
-
-        def set_source(e):
-            query["source"] = list(e.control.selected)[0]
-
-        source = ft.SegmentedButton(segments=[ft.Segment(value="off", label=ft.Text("Brands")),
-                                              ft.Segment(value="usda", label=ft.Text("USDA"))],
-                                    selected=[query["source"]], on_change=set_source, show_selected_icon=False)
+                              on_submit=lambda _: app.page.run_task(search_online, "off"), value=query["q"])
         fill_results(query["q"])
         content.controls = [
-            header(f"Add to {MEAL_LABELS[meal]}"), search,
+            header(f"Add to {MEAL_LABELS[meal]}{day_note}"), ft.Row([search]),
             ft.Row([ft.FilledTonalButton("Scan barcode", icon=ft.Icons.QR_CODE_SCANNER, on_click=lambda _: scan()),
-                    ft.TextButton("Quick add", icon=ft.Icons.BOLT, on_click=lambda _: quick())], wrap=True),
-            results,
-            ft.Divider(),
-            ft.Row([ft.Text("Search online", font_family=th.FONT_SEMI, size=14, expand=True), source]),
-            ft.FilledButton("Search online", icon=ft.Icons.TRAVEL_EXPLORE, on_click=lambda _: app.page.run_task(search_online)),
-            status, online_results,
+                    ft.TextButton("Quick add calories", icon=ft.Icons.BOLT, on_click=lambda _: quick())], wrap=True, spacing=4),
+            results, online_head, status, online_results, more,
         ]
         app.page.update()
 
@@ -242,7 +290,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
         def update_preview(*_):
             grams, _ = amount()
             n = scale_nutrients(f.per100, grams)
-            boxes = [ft.Container(ft.Column([ft.Text(fmt(n[k]), size=18, font_family=th.FONT_BOLD), th.muted(lbl, 11)],
+            boxes = [ft.Container(ft.Column([ft.Text(fmt(n[k]), size=18, font_family=th.FONT_BOLD), th.muted(lbl, th.T.CAPTION)],
                                             spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                                   expand=True, padding=10, border_radius=10, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST)
                      for k, lbl in (("kcal", "kcal"), ("protein", "protein"), ("carbs", "carbs"), ("fat", "fat"))]
@@ -250,7 +298,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
             good = [(p, m) for p, m in good if p >= 0.1][:4]
             preview.controls = [ft.Row(boxes, spacing=8)]
             if good:
-                preview.controls.append(ft.Row([th.muted("Good source of:", 12)] +
+                preview.controls.append(ft.Row([th.muted("Good source of:", th.T.CAPTION)] +
                                                 [th.chip(f"{m.label} {round(p * 100)}%", th.STATUS_COLORS["met"]) for p, m in good],
                                                 wrap=True, spacing=6))
             app.page.update()
@@ -258,6 +306,8 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
         def add(_):
             grams, label = amount()
             if grams <= 0:
+                qty.error = "Enter an amount"
+                app.page.update()
                 return
             if entry:
                 app.store.update_entry(entry["id"], meal=meal_dd.value, grams=grams, amount_label=label,
@@ -268,11 +318,17 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
                 return
             if f.source in ("OFF", "USDA"):
                 app.svc.remember_food(f)  # keep a copy so it works offline and shows in recents
-            app.store.add_entry(app.date, meal, f.name, scale_nutrients(f.per100, grams), food_id=f.id, grams=grams,
-                                amount_label=label)
-            close()
-            app.render()
+            eid = app.store.add_entry(app.date, meal, f.name, scale_nutrients(f.per100, grams), food_id=f.id, grams=grams,
+                                      amount_label=label)
+            logged(f.name, eid, meal)
 
+        def set_qty(v: float) -> None:
+            qty.value, qty.error = fmt(v), None
+            update_preview()
+
+        steps = ft.Row([ft.OutlinedButton(lbl, on_click=lambda _, v=v: set_qty(v),
+                                          style=ft.ButtonStyle(padding=ft.Padding.symmetric(horizontal=12)))
+                        for lbl, v in (("½", 0.5), ("1", 1), ("1½", 1.5), ("2", 2))], spacing=6, wrap=True)
         qty.on_change = update_preview
         qty.on_submit = add
         unit.on_select = update_preview
@@ -281,7 +337,9 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
                                 ft.Row([ft.FilledButton("Save changes", icon=ft.Icons.CHECK, on_click=add, expand=True),
                                         ft.OutlinedButton("Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=lambda _: delete(entry))])]
         else:
-            content.controls = [header(f.name, back=True), ft.Row([qty, unit], spacing=10), preview,
+            b = badge(f)
+            content.controls = [header(f.name, back=True), *([ft.Row([b])] if b else []), ft.Row([qty, unit], spacing=10),
+                                steps, preview,
                                 ft.FilledButton("Add", icon=ft.Icons.CHECK, on_click=add, width=float("inf"))]
         update_preview()
 
@@ -310,7 +368,9 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
             if entry:
                 app.store.update_entry(entry["id"], meal=meal_dd.value, name=name.value.strip() or "Quick add", n=n)
             else:
-                app.store.add_entry(app.date, meal, name.value.strip() or "Quick add", n, amount_label="quick add")
+                eid = app.store.add_entry(app.date, meal, name.value.strip() or "Quick add", n, amount_label="quick add")
+                logged(name.value.strip() or "Quick add", eid, meal)
+                return
             close()
             app.render()
 
@@ -318,7 +378,8 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
                             ft.Row([fields["kcal"], fields["protein"]], spacing=10),
                             ft.Row([fields["carbs"], fields["fat"]], spacing=10),
                             *([meal_dd] if entry else []),
-                            th.muted("Good for restaurant meals. Quick adds don't include micronutrients.", 12)]
+                            th.muted("Good for eating out: a rough number beats no number. Quick adds don't count vitamins and minerals.",
+                                     th.T.CAPTION)]
         if entry:
             content.controls.append(ft.Row([ft.FilledButton("Save changes", icon=ft.Icons.CHECK, on_click=add, expand=True),
                                             ft.OutlinedButton("Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=lambda _: delete(entry))]))

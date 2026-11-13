@@ -137,6 +137,17 @@ class Store:
     def recents(self) -> list[str]:
         return self.get("recents", [])
 
+    def last_amounts(self, food_ids: list[str]) -> dict[str, tuple[float, str]]:
+        """The most recent (grams, amount label) logged for each food, for one-tap re-logging."""
+        if not food_ids:
+            return {}
+        marks = ",".join("?" * len(food_ids))
+        out: dict[str, tuple[float, str]] = {}
+        for r in self._q(f"select food_id, grams, amount_label from entries where food_id in ({marks}) and grams > 0 "
+                         "order by created desc", tuple(food_ids)):
+            out.setdefault(r["food_id"], (float(r["grams"]), r["amount_label"] or ""))
+        return out
+
     # ---------- foods ----------
     def custom_foods(self) -> list[Food]:
         return [Food.from_dict(json.loads(r["data"])) for r in self._q("select data from custom_foods order by created desc")]

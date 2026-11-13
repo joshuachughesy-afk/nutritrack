@@ -18,10 +18,10 @@ if TYPE_CHECKING:
 
 def build(app: "App") -> list[ft.Control]:
     """The Progress tab: Garden (motivation) and Trends (analysis)."""
-    tab = getattr(app, "progress_tab", "garden")
+    tab = app.ui.progress_tab
 
     def switch(e):
-        app.progress_tab = list(e.control.selected)[0]
+        app.ui.progress_tab = list(e.control.selected)[0]
         app.render()
 
     toggle = ft.SegmentedButton(segments=[ft.Segment(value="garden", label=ft.Text("Garden"), icon=ft.Icon(ft.Icons.PARK)),

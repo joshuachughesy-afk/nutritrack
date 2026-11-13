@@ -9,6 +9,9 @@ from .nutrition import MICROS, Micro, Nutrients, Targets, fmt
 
 DEFAULT_SCHEDULE = {"wake": "07:00", "sleep": "23:00", "breakfast": "08:00", "lunch": "12:30", "dinner": "18:30"}
 
+MEAL_LABELS = {"breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner", "snacks": "Snacks"}
+MEAL_ORDER = list(MEAL_LABELS)
+
 
 def to_min(hhmm: str) -> int:
     h, _, m = str(hhmm).partition(":")

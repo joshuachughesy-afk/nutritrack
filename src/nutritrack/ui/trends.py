@@ -19,10 +19,10 @@ GRID = ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE)
 
 
 def build(app: "App") -> list[ft.Control]:
-    days = getattr(app, "trend_days", 7)
+    days = app.ui.trend_days
 
     def set_range(e):
-        app.trend_days = int(list(e.control.selected)[0])
+        app.ui.trend_days = int(list(e.control.selected)[0])
         app.render()
 
     rng = ft.SegmentedButton(segments=[ft.Segment(value=str(n), label=ft.Text(f"{n} days")) for n in (7, 30, 90)],

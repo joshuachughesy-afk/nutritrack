@@ -12,11 +12,12 @@ from ..service import Service, shift, today_key
 from ..store import Store
 from . import motion
 from . import theme as th
+from .state import UIState
 
 NAV = [
     ("today", "Today", ft.Icons.WB_SUNNY_OUTLINED, ft.Icons.WB_SUNNY),
     ("foods", "Foods", ft.Icons.RESTAURANT_OUTLINED, ft.Icons.RESTAURANT),
-    ("supps", "Supps", ft.Icons.MEDICATION_OUTLINED, ft.Icons.MEDICATION),
+    ("supps", "Stack", ft.Icons.MEDICATION_OUTLINED, ft.Icons.MEDICATION),
     ("garden", "Progress", ft.Icons.PARK_OUTLINED, ft.Icons.PARK),
     ("profile", "Profile", ft.Icons.PERSON_OUTLINE, ft.Icons.PERSON),
 ]
@@ -33,6 +34,7 @@ class App:
         self.svc = Service(self.store)
         self.view = "today"
         self.date = today_key()
+        self.ui = UIState()
         self._last_screen: tuple[str, str] | None = None
         self.body = ft.Column(spacing=16, scroll=ft.ScrollMode.AUTO, expand=True)
 
@@ -103,6 +105,8 @@ class App:
 
     def go(self, view: str, date: str | None = None) -> None:
         changed = view != self.view or (date and date != self.date)
+        if view != self.view or (view == self.view and self.ui.sub_open(view) and not date):
+            self.ui.close_sub(view)  # switching tabs (or re-tapping the current one) closes editors
         self.view = view
         if date:
             self.date = date
@@ -116,25 +120,45 @@ class App:
         if self.closed:
             return
 
-        if not self.store.profile() and self.view != "profile":
-            self.view = "profile"
-        screen = (self.view, self.date, getattr(self, "progress_tab", ""), str(getattr(self, "supp_edit", "")))
+        from . import onboarding
+
+        th.set_mode(self.dark)
+        onboard = not self.store.profile()
+        self.page.navigation_bar.visible = not onboard
+        screen = ("onboarding", str(self.ui.onboarding.get("step", 0))) if onboard else \
+            (self.view, self.date, self.ui.key(self.view))
         motion.entering = screen != self._last_screen
         self._last_screen = screen
         self.page.navigation_bar.selected_index = [n[0] for n in NAV].index(self.view)
-        builder = {"today": today.build, "foods": foods.build, "supps": supps.build, "garden": garden.build,
-                   "profile": profile.build}[self.view]
+        self.grew = False
+        if not onboard and self.view == "today" and self.date == today_key():
+            self._check_growth()
+        builder = onboarding.build if onboard else {"today": today.build, "foods": foods.build, "supps": supps.build,
+                                                    "garden": garden.build, "profile": profile.build}[self.view]
         try:
             controls = builder(self)
         except Exception:  # a bug in one screen shouldn't blank the app
             diagnostics.log.exception("failed to build %s", self.view)
             controls = [self._error_card(traceback.format_exc())]
-        self.body.controls = motion.entrance(controls + [ft.Container(height=12)])
-        self.page.floating_action_button = self._quick_log_button() if self.view == "today" else None
+        fab = self.view == "today" and not onboard
+        # leave room under the last card so the quick-log button never covers it
+        self.body.controls = motion.entrance(controls + [ft.Container(height=96 if fab else 16)])
+        self.page.floating_action_button = self._quick_log_button() if fab else None
         self.page.update()
         self.page.run_task(motion.flush)
         if hasattr(self, "notifier"):
             self.notifier.request_sync()
+
+    def _check_growth(self) -> None:
+        """Celebrate a stage-up or new level. Runs before Today is built, so building a screen has no side effects."""
+        from ..core.garden import stage_for
+        try:
+            ds, _, _ = self.svc.live_score(self.date)
+            for msg in self.svc.check_growth(self.date, stage_for(ds.score)):
+                self.grew = True
+                self.celebrate(msg, big="level" in msg.lower())
+        except Exception:
+            diagnostics.log.exception("growth check failed")
 
     # ---------- errors ----------
     def _install_crash_guard(self) -> None:
@@ -168,7 +192,7 @@ class App:
     def _error_card(self, details: str) -> ft.Control:
         return th.card(
             th.heading("This screen hit a problem", icon=ft.Icons.ERROR_OUTLINE, icon_color=th.STATUS_COLORS["over"]),
-            th.muted("Your data is safe. The error was saved to the log (Profile → About & diagnostics).", 13),
+            th.muted("Your data is safe. The error was saved to the log (Profile → Help & feedback).", 13),
             ft.Row([ft.FilledButton("Try again", icon=ft.Icons.REFRESH, on_click=lambda _: self.render()),
                     ft.TextButton("Details", on_click=lambda _: self.show_error_details(details)),
                     ft.TextButton("Go to Today", on_click=lambda _: self.go("today", today_key()))], wrap=True))
@@ -185,13 +209,30 @@ class App:
 
     # ---------- quick actions ----------
     def current_meal(self) -> str:
+        """The meal that fits the time of day; if it's already logged, the next empty one (or snacks)."""
         sched, now = self.store.schedule(), datetime.now()
         m = now.hour * 60 + now.minute
         if m < to_min(sched["lunch"]) - 45:
-            return "breakfast"
-        if m < to_min(sched["dinner"]) - 45:
-            return "lunch"
-        return "dinner" if m < to_min(sched["dinner"]) + 120 else "snacks"
+            meal = "breakfast"
+        elif m < to_min(sched["dinner"]) - 45:
+            meal = "lunch"
+        else:
+            meal = "dinner" if m < to_min(sched["dinner"]) + 120 else "snacks"
+        if meal == "snacks":
+            return meal
+        logged = {e["meal"] for e in self.store.entries(self.date)}
+        order = ["breakfast", "lunch", "dinner"]
+        for candidate in order[order.index(meal):]:
+            if candidate not in logged:
+                return candidate
+        return "snacks"
+
+    def back(self) -> bool:
+        """Close the open sub-page (editor, settings page). Returns False if there was nothing to close."""
+        if self.ui.close_sub(self.view):
+            self.render()
+            return True
+        return False
 
     def quick_log(self) -> None:
         from . import add_food
@@ -202,15 +243,20 @@ class App:
         return ft.FloatingActionButton(
             content=ft.Row([ft.Icon(ft.Icons.ADD_ROUNDED), ft.Text(f"Log {self.current_meal()}", font_family=th.FONT_SEMI)],
                            tight=True, spacing=6),
-            tooltip="Log food (Alt+N)", on_click=lambda _: self.quick_log(),
+            tooltip="Log food", on_click=lambda _: self.quick_log(),
             shape=ft.RoundedRectangleBorder(radius=18), width=60 + 9 * len(f"Log {self.current_meal()}"), height=52)
 
     def _on_key(self, e) -> None:
-        """Desktop shortcuts. Alt-combos only, so typing in a text field never triggers them."""
+        """Desktop shortcuts. Alt-combos only, so typing in a text field never triggers them; Esc goes back."""
+        key = (e.key or "").lower()
+        if key == "escape":
+            self.back()
+            return
         if not getattr(e, "alt", False):
             return
-        key = (e.key or "").lower()
-        if key in ("arrow left", "arrow right") and self.view == "today":
+        if key == "arrow left" and self.ui.sub_open(self.view):
+            self.back()
+        elif key in ("arrow left", "arrow right") and self.view == "today":
             self.date = shift(self.date, -1 if key == "arrow left" else 1)
             self.render()
         elif key == "t":

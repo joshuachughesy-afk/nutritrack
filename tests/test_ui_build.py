@@ -10,6 +10,7 @@ from nutritrack.core.supplements import SUPP_TEMPLATES
 from nutritrack.service import Service, today_key
 from nutritrack.store import Store
 from nutritrack.ui import add_food, foods, garden, profile, supps, today
+from nutritrack.ui.state import UIState
 
 
 class FakePage:
@@ -25,6 +26,7 @@ class FakeApp:
     def __init__(self, store):
         self.page, self.store, self.svc = FakePage(), store, Service(store)
         self.date, self.view, self.rendered = today_key(), "today", 0
+        self.ui = UIState()
 
         class _N:
             can_schedule = False
@@ -45,6 +47,7 @@ class FakeApp:
     def celebrate(self, msg, big=False): self.last_toast = msg
     def set_theme_mode(self, mode): self.theme_mode = mode
     def confirm(self, title, text, on_yes, yes_label="Delete"): on_yes()
+    def back(self): return self.ui.close_sub(self.view)
 
 
 @pytest.fixture
@@ -65,8 +68,8 @@ def test_screen_builds(app, module):
 
 def test_supplement_editor_builds(app):
     supps._new(app, supps.SUPP_TEMPLATES[2])
-    assert app.supp_edit == "new" and supps.build(app)
-    app.supp_edit = app.store.supplements()[0].id
+    assert app.ui.supp_edit == "new" and supps.build(app)
+    app.ui.supp_edit = app.store.supplements()[0].id
     assert supps.build(app)
 
 
@@ -88,7 +91,7 @@ def test_progress_trends_tab_builds(app):
     for i in range(20):
         app.svc.log_weight((t - timedelta(days=i)).isoformat(), 84 - i * 0.05)
     for n in (7, 30, 90):
-        app.progress_tab, app.trend_days = "trends", n
+        app.ui.progress_tab, app.ui.trend_days = "trends", n
         assert garden.build(app)
 
 
@@ -135,10 +138,8 @@ def test_fake_app_matches_real_app_interface():
         for node in ast.walk(ast.parse(p.read_text())):
             if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "app":
                 used.add(node.attr)
-    dynamic = {"supp_edit", "supp_draft", "progress_tab", "trend_days", "foods_tab", "recipe_edit",
-               "recipe_draft"}  # screen state set at runtime
-    real = set(dir(App)) | {"page", "store", "svc", "view", "date", "body", "notifier", "visible", "_last_screen"} | dynamic
-    fake = set(dir(FakeApp)) | {"page", "store", "svc", "view", "date", "rendered", "notifier"} | dynamic
+    real = set(dir(App)) | {"page", "store", "svc", "view", "date", "body", "notifier", "visible", "_last_screen", "ui"}
+    fake = set(dir(FakeApp)) | {"page", "store", "svc", "view", "date", "rendered", "notifier", "ui"}
     assert not (used - real), f"screens use attributes App doesn't have: {sorted(used - real)}"
     assert not (used - fake), f"FakeApp is missing: {sorted(used - fake)}"
 
@@ -156,13 +157,13 @@ def test_foods_tabs_recipes_plans_and_day_review(app):
     app.store.save_recipe(Recipe("r-1", "Bowl", 2, [Ingredient(f.id, f.name, 200, scale_nutrients(f.per100, 200))]))
     app.store.save_plan(Plan.from_entries("p-1", "My lunch", "meal", app.store.entries(app.date)))
     for tab in ("foods", "recipes", "plans"):
-        app.foods_tab, app.recipe_edit = tab, None
+        app.ui.foods_tab, app.ui.recipe_edit = tab, None
         assert foods.build(app)
-    app.foods_tab, app.recipe_edit, app.recipe_draft = "recipes", "new", Recipe("r-2", "", 2, [])
+    app.ui.foods_tab, app.ui.recipe_edit, app.ui.recipe_draft = "recipes", "new", Recipe("r-2", "", 2, [])
     assert foods.build(app)
     add_food.open_sheet(app, "lunch", food=app.svc.find_food("r-1"))
     day_review.open_review(app, app.date)
     assert isinstance(app.page.dialogs[-1], ft.BottomSheet)
     # a recipe never shows up among "my foods" (it has its own tab)
-    app.foods_tab = "foods"
+    app.ui.foods_tab = "foods"
     assert "Bowl" not in str(foods.build(app))
