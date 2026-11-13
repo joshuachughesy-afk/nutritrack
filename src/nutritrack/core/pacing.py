@@ -22,7 +22,7 @@ def from_min(m: float) -> str:
 def _interpolate(points: list[tuple[float, float]], x: float) -> float:
     if x <= points[0][0]:
         return points[0][1]
-    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+    for (x0, y0), (x1, y1) in zip(points, points[1:], strict=False):
         if x <= x1:
             return y1 if x1 == x0 else y0 + (y1 - y0) * (x - x0) / (x1 - x0)
     return points[-1][1]

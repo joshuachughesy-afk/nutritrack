@@ -56,7 +56,7 @@ def _icosphere(center: Vec, radius: Vec, color, rnd: random.Random, subdiv: int 
     for _ in range(subdiv):
         cache: dict[tuple[int, int], int] = {}
 
-        def mid(i: int, j: int) -> int:
+        def mid(i: int, j: int, cache: dict = cache) -> int:
             key = (min(i, j), max(i, j))
             if key not in cache:
                 verts.append(_norm(_mul(_add(verts[i], verts[j]), 0.5)))

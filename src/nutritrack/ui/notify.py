@@ -18,6 +18,8 @@ try:  # optional at import time so tests and plain web runs work without it
 except Exception:  # pragma: no cover
     ftn = None
 
+from ..diagnostics import log
+
 if TYPE_CHECKING:
     from .app import App
 
@@ -78,6 +80,7 @@ class Notifier:
                     match_components=ftn.DateTimeComponents.TIME if p.repeat_daily else None)
             self._plan_hash = digest
         except Exception as ex:  # never let reminders break the app
+            log.exception("scheduling %d reminders failed", len(plan))
             self.app.toast(f"Couldn't schedule reminders: {ex}")
 
     # ---------- in-app loop ----------
@@ -88,8 +91,10 @@ class Notifier:
         client costs the server nothing.
         """
         last_sig = None
-        while True:
+        while not self.app.closed:
             await asyncio.sleep(60)
+            if self.app.closed:
+                break
             if not self.app.visible:
                 continue
             try:
@@ -98,8 +103,8 @@ class Notifier:
                     if not self.can_schedule and self.service is not None:
                         try:
                             await self.service.show(abs(hash(ev.key)) % 2**31, title=ev.title, body=ev.body, payload=ev.payload)
-                        except Exception:
-                            pass
+                        except Exception as ex:  # e.g. permission denied in the browser: the banner still shows
+                            log.warning("system notification failed: %s", ex)
                     self.app.banner(ev.title, ev.body, ev.payload)
                 if self.app.view == "today":
                     sig = self.app.svc.pace_signature(self.app.date)
@@ -107,7 +112,7 @@ class Notifier:
                         last_sig = sig
                         self.app.render()
             except Exception:
-                pass
+                log.exception("reminder loop")  # keep the loop alive, but never hide the bug
 
     async def test(self) -> None:
         shown = False

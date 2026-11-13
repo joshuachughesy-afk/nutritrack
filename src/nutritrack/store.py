@@ -159,6 +159,12 @@ class Store:
             self.set("recents", ([food_id] + [r for r in self.recents() if r != food_id])[:12])
         return eid
 
+    def restore_entry(self, e: dict) -> None:
+        """Put back an entry exactly as it was (undo)."""
+        self._x("insert or replace into entries(id, date, meal, food_id, name, grams, amount_label, n, created) "
+                "values(?,?,?,?,?,?,?,?,?)", (e["id"], e["date"], e["meal"], e.get("food_id"), e["name"], e.get("grams") or 0,
+                                              e.get("amount_label") or "", json.dumps(e["n"]), e.get("created") or time.time()))
+
     def update_entry(self, entry_id: str, **fields) -> None:
         """Change meal, name, grams, amount_label and/or nutrients (n) of a logged entry."""
         allowed = {"meal", "name", "grams", "amount_label", "n"}

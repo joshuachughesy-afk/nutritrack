@@ -16,6 +16,8 @@ from ..service import today_key
 from . import motion
 from . import theme as th
 
+from ..diagnostics import log
+
 if TYPE_CHECKING:
     from .app import App
 
@@ -91,7 +93,7 @@ class ForestView:
             self.img.src = await asyncio.to_thread(self._frame, start)
             self.img.update()
         except Exception:
-            pass
+            log.exception("forest fly-around")
         finally:
             self.flying = False
             self.fly_btn.disabled = False

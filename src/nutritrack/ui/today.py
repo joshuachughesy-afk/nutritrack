@@ -42,9 +42,11 @@ def build(app: "App") -> list[ft.Control]:
 
 
 # ---------- header ----------
-def _greeting() -> str:
-    h = datetime.now().hour
-    return "Good morning" if 4 <= h < 12 else "Good afternoon" if h < 17 else "Good evening"
+def _greeting(hour: int | None = None) -> str:
+    h = datetime.now().hour if hour is None else hour
+    if 4 <= h < 12:
+        return "Good morning"
+    return "Good afternoon" if 12 <= h < 17 else "Good evening"  # 17:00 until 03:59
 
 
 def _header(app: "App") -> ft.Control:
@@ -205,23 +207,30 @@ def _meal(app: "App", meal: str, label: str, icon) -> ft.Control:
     entries = [e for e in app.store.entries(app.date) if e["meal"] == meal]
     kcal = sum(e["n"]["kcal"] for e in entries)
 
-    def remove(eid):
+    def remove(entry):
         motion.haptic("light")
-        app.store.remove_entry(eid)
+        app.store.remove_entry(entry["id"])
         app.render()
+        app.toast(f"Removed {entry['name']}", undo=lambda: app.store.restore_entry(entry))
 
     rows: list[ft.Control] = []
     for e in entries:
         n = e["n"]
-        rows.append(ft.Container(ft.Row([
+        row = ft.Container(ft.Row([
             ft.Column([ft.Text(e["name"], size=14, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, font_family=th.FONT_SEMI),
                        th.muted(f"{e['amount_label']} · P {fmt(n['protein'])} · C {fmt(n['carbs'])} · F {fmt(n['fat'])}", 12)],
                       spacing=1, expand=True),
             ft.Text(fmt(n["kcal"]), size=15, font_family=th.FONT_BOLD),
-            ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=18, tooltip=f"Remove {e['name']}", on_click=lambda _, i=e["id"]: remove(i)),
+            ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=18, tooltip=f"Remove {e['name']}", on_click=lambda _, e=e: remove(e)),
         ], vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=ft.Padding.only(left=12, top=6, bottom=6),
-            border_radius=14, bgcolor=ft.Colors.SURFACE_CONTAINER, ink=True, tooltip="Tap to edit",
-            on_click=lambda _, e=e: (motion.haptic("select"), add_food.open_sheet(app, meal, edit=e))))
+            border_radius=14, bgcolor=ft.Colors.SURFACE_CONTAINER, ink=True, tooltip="Tap to edit · swipe left to remove",
+            on_click=lambda _, e=e: (motion.haptic("select"), add_food.open_sheet(app, meal, edit=e)))
+        swipe_bg = ft.Container(ft.Row([ft.Icon(ft.Icons.DELETE_OUTLINE, color=ft.Colors.WHITE), ft.Text("Remove", color=ft.Colors.WHITE)],
+                                       alignment=ft.MainAxisAlignment.END), bgcolor=th.STATUS_COLORS["over"], border_radius=14,
+                                padding=ft.Padding.only(right=16))
+        rows.append(ft.Dismissible(content=row, key=e["id"], dismiss_direction=ft.DismissDirection.END_TO_START,
+                                   background=swipe_bg, secondary_background=swipe_bg,
+                                   on_dismiss=lambda _, e=e: remove(e)))
 
     actions: list[ft.Control] = [ft.FilledTonalButton("Add food", icon=ft.Icons.ADD_ROUNDED,
                                                       on_click=lambda _: (motion.haptic("light"), add_food.open_sheet(app, meal)))]

@@ -12,6 +12,11 @@ from nutritrack.ui.app import App
 
 
 def main(page: ft.Page) -> None:
+    if os.getenv("NUTRITRACK_DEBUG"):
+        import logging
+
+        from nutritrack import diagnostics
+        diagnostics.setup_logging(logging.DEBUG)
     App(page)
 
 

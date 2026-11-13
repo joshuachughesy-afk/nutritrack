@@ -132,7 +132,7 @@ def build(app: "App") -> list[ft.Control]:
     out.append(form)
     if existing:
         out += _targets(app, p) + [_reminders_card(app), _training_card(app, p), _appearance_card(app),
-                                   _databases_card(app), _data_card(app)]
+                                   _databases_card(app), _data_card(app), _about_card(app)]
     return out
 
 
@@ -298,6 +298,46 @@ def _appearance_card(app: "App") -> ft.Control:
                    th.muted(f"Your garden follows the seasons: blossom in spring, gold in autumn, snow in winter. "
                             f"It's {app.svc.season()} now.", 12),
                    ft.Row([hemi], wrap=True))
+
+
+def _about_card(app: "App") -> ft.Control:
+    """Version, environment, recent log and a copyable report for bug reports."""
+    import os
+
+    from .. import diagnostics
+
+    env = diagnostics.environment(app.page)
+    log_tail = diagnostics.tail(12)
+
+    async def export_log(_):
+        try:
+            data = diagnostics.report(app.store, app.page, lines=400).encode()
+            await ft.FilePicker().save_file(dialog_title="Save diagnostics", file_name="nutritrack-diagnostics.md", src_bytes=data)
+        except Exception as ex:
+            diagnostics.log.exception("export log failed")
+            app.toast(f"Couldn't save: {ex}")
+
+    def boom(_):  # developer check of the crash guard (NUTRITRACK_DEBUG=1)
+        raise RuntimeError("Simulated error from the diagnostics card")
+
+    actions: list[ft.Control] = [
+        ft.FilledTonalButton("Copy diagnostics", icon=ft.Icons.CONTENT_COPY,
+                             on_click=lambda _: app.copy(diagnostics.report(app.store, app.page))),
+        ft.OutlinedButton("Save diagnostics", icon=ft.Icons.DOWNLOAD, on_click=export_log),
+    ]
+    if os.getenv("NUTRITRACK_DEBUG"):
+        actions.append(ft.TextButton("Simulate an error", icon=ft.Icons.BUG_REPORT, on_click=boom))
+    return th.card(
+        th.heading("About & diagnostics", icon=ft.Icons.INFO_OUTLINE),
+        th.muted(" · ".join(f"{k} {v}" for k, v in env.items()), 12),
+        th.muted("Desktop shortcuts: Alt+← / Alt+→ change day · Alt+T today · Alt+N log food · Alt+1–5 switch tabs", 12),
+        ft.Text("Recent log", size=14, font_family=th.FONT_SEMI),
+        ft.Container(ft.Text(log_tail, size=10.5, font_family="monospace", selectable=True), padding=10, border_radius=12,
+                     bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST),
+        th.muted(f"Log file: {diagnostics.log_file()}. Found a bug? Copy the diagnostics into a GitHub issue. They include "
+                 "versions, record counts and the log, never your food or body data.", 11),
+        ft.Row(actions, wrap=True),
+    )
 
 
 def _databases_card(app: "App") -> ft.Control:

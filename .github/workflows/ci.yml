@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: pip install "flet==1.1.2" flet-notifications==1.1.2 flet-charts==1.1.2 flet-camera==1.1.2 zxing-cpp pillow pytest python-barcode ruff
+      - name: Lint (bug-pattern rules)
+        run: ruff check src tests
+      - name: Tests
+        run: pytest -q

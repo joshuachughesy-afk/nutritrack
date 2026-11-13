@@ -66,6 +66,13 @@ Measured on 5 weeks of sample data, for the render that follows a write:
 | Trends (90 days) | 1,037 queries (1,219 with adaptive) | 5 queries |
 | Garden | 136 queries · 460 KB images | 6 queries · 26 KB |
 
+## Everyday conveniences
+
+* **Undo:** removing a food (✕, swipe left, or Delete in the editor) shows *Undo* for a few seconds.
+* **Swipe left** on a logged food to remove it; tap it to edit.
+* **Quick log:** the button on Today opens Add food for the meal that fits the time of day.
+* **Desktop shortcuts:** Alt+← / Alt+→ change day, Alt+T today, Alt+N log food, Alt+1–5 switch tabs.
+
 ## Editing what you logged
 
 Tap any food on Today to change its amount, unit or meal (or delete it). The editor starts from what you logged, and
@@ -79,6 +86,27 @@ recognises clean serving multiples ("172 g" opens as "1 breast"). Quick adds ope
 
 Barcode photos are decoded on the device with `zxing-cpp`. If a phone build doesn't include it, the scanner falls back
 to typing the barcode number.
+
+## Development
+
+```bash
+make check     # ruff (bug-pattern rules) + pytest — the same as CI
+make web       # run in the browser
+make debug     # browser + verbose logging + a "Simulate an error" button on Profile
+make assets    # re-render the bundled seasonal trees after changing core/render3d.py
+```
+
+* **CI** (`.github/workflows/ci.yml`) runs lint and the tests on Python 3.11 and 3.13 for every push and pull request.
+* **Errors never take the app down.** Flet normally answers an exception in an event handler by crashing the whole
+  session; `App` intercepts that, logs the traceback and shows "Something went wrong" with a Details button. A screen
+  that fails to build shows an error card with *Try again* instead of a blank page.
+* **Logs** go to `logs/nutritrack.log` in the app's storage (rotating, 3 × 256 KB): start-up, handler errors with
+  tracebacks, background failures (reminders, online lookups, animations, the reminder loop). Background loops stop when
+  a session closes, so closed tabs don't leave work running.
+* **Bug reports:** Profile → About & diagnostics → *Copy diagnostics* gives versions, record counts and the recent log
+  (no food or body data), ready for the GitHub bug-report template.
+* **Guard-rail tests** catch whole classes of UI bugs: every screen builds against real data, no expanded child sits in
+  a wrapping row (a Flutter layout error), and the test double stays in sync with the real `App` interface.
 
 ## Tests
 

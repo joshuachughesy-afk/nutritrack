@@ -13,6 +13,8 @@ from typing import Awaitable, Callable
 
 import flet as ft
 
+from ..diagnostics import log
+
 _prev: dict[str, float] = {}
 _after: list[Callable[[], None]] = []
 _tasks: list[Callable[[], Awaitable[None]]] = []
@@ -87,13 +89,15 @@ async def flush() -> None:
         try:
             fn()
         except Exception:
-            pass
+            log.exception("animation step")
     try:
         _page.update()
-    except Exception:
+    except Exception:  # the session closed mid-animation: nothing to animate
         return
     if jobs:
-        await asyncio.gather(*(j() for j in jobs), return_exceptions=True)
+        for res in await asyncio.gather(*(j() for j in jobs), return_exceptions=True):
+            if isinstance(res, Exception):
+                log.error("animation task failed", exc_info=res)
 
 
 async def tween(setter: Callable[[float], None], start: float, end: float, ms: int = 700, update=None) -> None:

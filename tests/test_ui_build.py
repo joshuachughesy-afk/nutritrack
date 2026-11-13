@@ -36,7 +36,12 @@ class FakeApp:
     def go(self, view, date=None): self.view = view
     dark = False
     visible = True
-    def toast(self, msg): self.last_toast = msg
+    closed = False
+    def toast(self, msg, undo=None): self.last_toast, self.last_undo = msg, undo
+    def copy(self, text): self.copied = text
+    def show_error_details(self, details): self.error_details = details
+    def current_meal(self): return "lunch"
+    def quick_log(self): pass
     def celebrate(self, msg, big=False): self.last_toast = msg
     def set_theme_mode(self, mode): self.theme_mode = mode
     def confirm(self, title, text, on_yes, yes_label="Delete"): on_yes()
@@ -116,3 +121,28 @@ def test_no_expanded_children_in_wrapping_rows():
                     bad += [f"{p.name}:{node.lineno}" for el in node.args[0].elts
                             if isinstance(el, ast.Call) and any(k.arg == "expand" for k in el.keywords)]
     assert not bad, bad
+
+
+def test_fake_app_matches_real_app_interface():
+    """Every App attribute the screens use must exist on both the real App and this test double."""
+    import ast
+    from pathlib import Path
+    from nutritrack.ui.app import App
+    used = set()
+    for p in (Path(__file__).parent.parent / "src" / "nutritrack" / "ui").glob("*.py"):
+        if p.name == "app.py":
+            continue
+        for node in ast.walk(ast.parse(p.read_text())):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "app":
+                used.add(node.attr)
+    dynamic = {"supp_edit", "supp_draft", "progress_tab", "trend_days"}  # screen state set at runtime
+    real = set(dir(App)) | {"page", "store", "svc", "view", "date", "body", "notifier", "visible", "_last_screen"} | dynamic
+    fake = set(dir(FakeApp)) | {"page", "store", "svc", "view", "date", "rendered", "notifier"} | dynamic
+    assert not (used - real), f"screens use attributes App doesn't have: {sorted(used - real)}"
+    assert not (used - fake), f"FakeApp is missing: {sorted(used - fake)}"
+
+
+def test_greeting_covers_every_hour():
+    expected = {**{h: "Good morning" for h in range(4, 12)}, **{h: "Good afternoon" for h in range(12, 17)},
+                **{h: "Good evening" for h in [*range(17, 24), *range(0, 4)]}}
+    assert {h: today._greeting(h) for h in range(24)} == expected

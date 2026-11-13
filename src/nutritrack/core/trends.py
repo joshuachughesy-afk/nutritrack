@@ -38,7 +38,7 @@ def slope_kg_per_day(weights: list[tuple[str, float]]) -> float:
     ys = [w for _, w in weights]
     mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
     sxx = sum((x - mx) ** 2 for x in xs)
-    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx if sxx else 0.0
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=True)) / sxx if sxx else 0.0
 
 
 @dataclass

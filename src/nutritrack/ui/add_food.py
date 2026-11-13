@@ -275,7 +275,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None) -> None:
         app.store.remove_entry(entry["id"])
         close()
         app.render()
-        app.toast(f"Removed {entry['name']}")
+        app.toast(f"Removed {entry['name']}", undo=lambda: app.store.restore_entry(entry))
 
     # ---------- quick add ----------
     def quick(entry: dict | None = None) -> None:

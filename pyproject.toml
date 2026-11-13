@@ -1,6 +1,6 @@
 [project]
 name = "nutritrack"
-version = "2.0.0"
+version = "2.1.0"
 description = "Calories, macros, micronutrients, water and supplements, with reminders and a garden that grows with your consistency."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,3 +37,16 @@ path = "src"
 
 [tool.flet.ios.info]
 NSCameraUsageDescription = "NutriTrack uses the camera to scan food barcodes."
+
+[tool.ruff]
+line-length = 130
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E9/F: syntax errors, undefined names, unused imports. B: common bug patterns (mutable defaults,
+# loop-variable capture in lambdas, assert False, ...). PLE: runtime errors pylint can spot statically.
+select = ["E9", "F", "B", "PLE"]
+ignore = [
+  "B008",   # calling ft.Animation(...) etc. in defaults is intentional and immutable
+]

@@ -1,9 +1,14 @@
 """App shell: navigation, theme, shared state, re-rendering with motion, and feedback."""
 from __future__ import annotations
 
+import traceback
+from datetime import datetime
+
 import flet as ft
 
-from ..service import Service, today_key
+from .. import diagnostics
+from ..core.pacing import to_min
+from ..service import Service, shift, today_key
 from ..store import Store
 from . import motion
 from . import theme as th
@@ -20,7 +25,10 @@ THEME_MODES = {"system": ft.ThemeMode.SYSTEM, "light": ft.ThemeMode.LIGHT, "dark
 
 class App:
     def __init__(self, page: ft.Page, store: Store | None = None):
+        diagnostics.setup_logging()
+        diagnostics.log.info("start %s", diagnostics.environment(page))
         self.page = page
+        self._install_crash_guard()
         self.store = store or Store()
         self.svc = Service(self.store)
         self.view = "today"
@@ -37,7 +45,11 @@ class App:
         page.padding = 0
         page.on_platform_brightness_change = lambda _: self.render()
         self.visible = True
+        self.closed = False
         page.on_app_lifecycle_state_change = self._on_lifecycle
+        page.on_disconnect = self._on_close
+        page.on_close = self._on_close
+        page.on_keyboard_event = self._on_key
         page.navigation_bar = ft.NavigationBar(
             destinations=[ft.NavigationBarDestination(icon=i, selected_icon=si, label=l) for _, l, i, si in NAV],
             on_change=self._on_nav, animation_duration=400,
@@ -51,6 +63,12 @@ class App:
         self.svc.finalize_garden()
         self.render()
         page.run_task(self.notifier.loop)
+
+    def _on_close(self, _=None) -> None:
+        """The session ended (tab closed, app quit): stop background work so nothing keeps running for a dead client."""
+        if not self.closed:
+            diagnostics.log.info("session closed")
+        self.closed = True
 
     def _on_lifecycle(self, e) -> None:
         """Pause background work when the app isn't on screen; refresh when it comes back."""
@@ -95,6 +113,9 @@ class App:
     def render(self) -> None:
         from . import foods, garden, profile, supps, today  # local import avoids import cycles
 
+        if self.closed:
+            return
+
         if not self.store.profile() and self.view != "profile":
             self.view = "profile"
         screen = (self.view, self.date, getattr(self, "progress_tab", ""), str(getattr(self, "supp_edit", "")))
@@ -103,15 +124,112 @@ class App:
         self.page.navigation_bar.selected_index = [n[0] for n in NAV].index(self.view)
         builder = {"today": today.build, "foods": foods.build, "supps": supps.build, "garden": garden.build,
                    "profile": profile.build}[self.view]
-        self.body.controls = motion.entrance(builder(self) + [ft.Container(height=12)])
+        try:
+            controls = builder(self)
+        except Exception:  # a bug in one screen shouldn't blank the app
+            diagnostics.log.exception("failed to build %s", self.view)
+            controls = [self._error_card(traceback.format_exc())]
+        self.body.controls = motion.entrance(controls + [ft.Container(height=12)])
+        self.page.floating_action_button = self._quick_log_button() if self.view == "today" else None
         self.page.update()
         self.page.run_task(motion.flush)
         if hasattr(self, "notifier"):
             self.notifier.request_sync()
 
+    # ---------- errors ----------
+    def _install_crash_guard(self) -> None:
+        """Flet answers an exception in an event handler by crashing the whole session. Intercept that: log it, tell
+        the user calmly, and keep the app running."""
+        session = getattr(self.page, "session", None)
+        if session is None:
+            return
+
+        def on_error(message: str) -> None:
+            diagnostics.log.error("handler error: %s", message.splitlines()[0] if message else "?")
+            try:
+                self.page.show_dialog(ft.SnackBar(
+                    content=ft.Text("Something went wrong. Your data is safe and the error was logged."),
+                    action="Details", on_action=lambda _: self.show_error_details(message),
+                    duration=8000, behavior=ft.SnackBarBehavior.FLOATING))
+                self.page.update()
+            except Exception:
+                diagnostics.log.exception("could not show the error message")
+
+        session.error = on_error
+
+    def show_error_details(self, details: str) -> None:
+        self.page.show_dialog(ft.AlertDialog(
+            title=ft.Text("Error details", font_family=th.FONT_BOLD),
+            content=ft.Container(ft.Column([ft.Text(details[-3000:], size=11, selectable=True, font_family="monospace")],
+                                           scroll=ft.ScrollMode.AUTO), width=520, height=320),
+            actions=[ft.TextButton("Copy", on_click=lambda _: self.copy(details)),
+                     ft.FilledButton("Close", on_click=lambda _: self.page.pop_dialog())]))
+
+    def _error_card(self, details: str) -> ft.Control:
+        return th.card(
+            th.heading("This screen hit a problem", icon=ft.Icons.ERROR_OUTLINE, icon_color=th.STATUS_COLORS["over"]),
+            th.muted("Your data is safe. The error was saved to the log (Profile → About & diagnostics).", 13),
+            ft.Row([ft.FilledButton("Try again", icon=ft.Icons.REFRESH, on_click=lambda _: self.render()),
+                    ft.TextButton("Details", on_click=lambda _: self.show_error_details(details)),
+                    ft.TextButton("Go to Today", on_click=lambda _: self.go("today", today_key()))], wrap=True))
+
+    def copy(self, text: str) -> None:
+        async def go():
+            try:
+                await ft.Clipboard().set(text)
+                self.toast("Copied")
+            except Exception:
+                diagnostics.log.exception("clipboard failed")
+                self.toast("Couldn't copy on this device")
+        self.page.run_task(go)
+
+    # ---------- quick actions ----------
+    def current_meal(self) -> str:
+        sched, now = self.store.schedule(), datetime.now()
+        m = now.hour * 60 + now.minute
+        if m < to_min(sched["lunch"]) - 45:
+            return "breakfast"
+        if m < to_min(sched["dinner"]) - 45:
+            return "lunch"
+        return "dinner" if m < to_min(sched["dinner"]) + 120 else "snacks"
+
+    def quick_log(self) -> None:
+        from . import add_food
+        motion.haptic("light")
+        add_food.open_sheet(self, self.current_meal())
+
+    def _quick_log_button(self) -> ft.FloatingActionButton:
+        return ft.FloatingActionButton(
+            content=ft.Row([ft.Icon(ft.Icons.ADD_ROUNDED), ft.Text(f"Log {self.current_meal()}", font_family=th.FONT_SEMI)],
+                           tight=True, spacing=6),
+            tooltip="Log food (Alt+N)", on_click=lambda _: self.quick_log(),
+            shape=ft.RoundedRectangleBorder(radius=18), width=60 + 9 * len(f"Log {self.current_meal()}"), height=52)
+
+    def _on_key(self, e) -> None:
+        """Desktop shortcuts. Alt-combos only, so typing in a text field never triggers them."""
+        if not getattr(e, "alt", False):
+            return
+        key = (e.key or "").lower()
+        if key in ("arrow left", "arrow right") and self.view == "today":
+            self.date = shift(self.date, -1 if key == "arrow left" else 1)
+            self.render()
+        elif key == "t":
+            self.go("today", today_key())
+        elif key == "n":
+            self.go("today")
+            self.quick_log()
+        elif key in "12345" and len(key) == 1:
+            self.go(NAV[int(key) - 1][0])
+
     # ---------- feedback ----------
-    def toast(self, msg: str) -> None:
-        self.page.show_dialog(ft.SnackBar(content=ft.Text(msg), duration=2500, behavior=ft.SnackBarBehavior.FLOATING))
+    def toast(self, msg: str, undo=None) -> None:
+        """A short message; with `undo`, it offers an Undo action that calls it."""
+        def do_undo(_):
+            undo()
+            self.render()
+        self.page.show_dialog(ft.SnackBar(content=ft.Text(msg), duration=5000 if undo else 2500,
+                                          action="Undo" if undo else None, on_action=do_undo if undo else None,
+                                          behavior=ft.SnackBarBehavior.FLOATING))
 
     def celebrate(self, msg: str, big: bool = False) -> None:
         motion.haptic("heavy" if big else "medium")

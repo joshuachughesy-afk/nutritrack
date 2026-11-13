@@ -38,7 +38,7 @@ class Food:
 
 
 def _f(id: str, name: str, category: str, servings: list[tuple[str, float]], values: tuple[float, ...]) -> Food:
-    return Food(id, name, category, [Serving(l, g) for l, g in servings], dict(zip(NUTRIENT_ORDER, values)))
+    return Food(id, name, category, [Serving(l, g) for l, g in servings], dict(zip(NUTRIENT_ORDER, values, strict=True)))
 
 
 FOODS: list[Food] = [
