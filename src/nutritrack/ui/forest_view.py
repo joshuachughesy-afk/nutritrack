@@ -1,7 +1,5 @@
-"""Your whole garden as one 3D landscape: a plot per day for the last 8 weeks (rows = weeks, columns = Mon..Sun).
-
-Drag sideways to orbit; "Fly around" plays a full orbit. Frames are rendered off the UI thread and cached.
-"""
+"""Your whole garden as a 3D valley: the last 8 weeks of daily trees along a stream, oldest in the distance, today in
+front. Drag sideways to orbit; the fly button plays a full orbit. Frames are rendered off the UI thread and cached."""
 from __future__ import annotations
 
 import asyncio
@@ -22,10 +20,12 @@ if TYPE_CHECKING:
     from .app import App
 
 STEP = 15
-W, H = 640, 420
+W, H = 640, 400
+WEEKS = 8
 
 
-def forest_trees(app: "App", weeks: int = 8) -> tuple[tuple[int, int, str, int], ...]:
+def forest_trees(app: "App", weeks: int = WEEKS) -> tuple[tuple[int, str, int], ...]:
+    """(slot, species, stage) for each logged day; slot 0 is the oldest day shown, the last slot is today."""
     days, _ = app.svc.history()
     scores = dict(days)
     today = date.fromisoformat(today_key())
@@ -35,7 +35,7 @@ def forest_trees(app: "App", weeks: int = 8) -> tuple[tuple[int, int, str, int],
         d = start + timedelta(days=i)
         sc = scores.get(d.isoformat())
         if d <= today and sc is not None:
-            trees.append((i % 7, i // 7, app.svc.species_for(d.isoformat()), stage_for(sc)))
+            trees.append((i, app.svc.species_for(d.isoformat()), stage_for(sc)))
     return tuple(trees)
 
 
@@ -44,25 +44,26 @@ class ForestView:
         self.app = app
         self.trees = forest_trees(app)
         self.season = app.svc.season()
-        self.angle = 35
+        self.angle = 0
         self.flying = False
-        self.img = ft.Image(src=self._frame(self.angle), fit=ft.BoxFit.CONTAIN, gapless_playback=True)
+        self.img = ft.Image(src=self._frame(self.angle), fit=ft.BoxFit.COVER, gapless_playback=True,
+                            border_radius=18)
         gesture = ft.GestureDetector(content=self.img, on_horizontal_drag_update=self._drag,
                                      mouse_cursor=ft.MouseCursor.GRAB)
-        self.fly_btn = ft.FilledTonalButton("Fly around", icon=ft.Icons.FLIGHT_TAKEOFF_ROUNDED, on_click=self._fly)
+        self.fly_btn = ft.IconButton(ft.Icons.FLIGHT_TAKEOFF_ROUNDED, tooltip="Fly around", on_click=self._fly,
+                                     style=ft.ButtonStyle(bgcolor=ft.Colors.with_opacity(0.85, ft.Colors.SURFACE)))
         count = len(self.trees)
-        sky = ft.LinearGradient(begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER, colors=th.SKY[app.dark])
         self.control = th.card(
             th.heading("Your forest", th.muted(f"{count} tree{'s' if count != 1 else ''} · {self.season}", 12),
                        icon=ft.Icons.FOREST),
-            ft.Container(gesture, gradient=sky, border_radius=18, padding=4, alignment=ft.Alignment.CENTER,
-                         aspect_ratio=W / H),
-            ft.Row([th.muted("Drag to look around. Each row is a week, oldest at the back.", 12, expand=True), self.fly_btn],
-                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Container(ft.Stack([gesture, ft.Container(self.fly_btn, right=8, top=8)]), aspect_ratio=W / H,
+                         border_radius=18, clip_behavior=ft.ClipBehavior.HARD_EDGE),
+            th.muted("Drag to look around · today is closest, older days further up the valley", 11),
+            spacing=10,
         )
 
     def _frame(self, angle: int, small: bool = False) -> bytes:
-        w, h = (480, 315) if small else (W, H)
+        w, h = (480, 300) if small else (W, H)
         return render3d.forest_png(self.trees, angle % 360, w, h, self.season)
 
     def _drag(self, e) -> None:

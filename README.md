@@ -38,8 +38,11 @@ can analyse directly with pandas or any SQLite tool.
 * **Seasons.** Trees and islands follow the real season (Northern/Southern hemisphere, or "always summer" in Profile →
   Appearance): fresh greens, blossom and flowers in spring; orange/red/gold canopies, falling leaves and golden grass in
   autumn; bare branches, snow-covered islands and snow on evergreens in winter.
-* **Your forest in 3D.** Progress → Garden shows every daily tree from the last 8 weeks on one landscape (a row per
-  week). Drag to orbit, or tap **Fly around** for a full flight around it.
+* **Your forest valley.** Progress → Garden shows the last 8 weeks of daily trees along a winding stream in a wide valley,
+  oldest far up the valley and today closest to you, with mountains on the horizon (a perspective camera with distance
+  haze). Drag to orbit, or tap the fly button for a full flight around it.
+* **Look back on any day.** Tap a tree in the Garden calendar to see that day's tree, score, calories and macros against
+  target, water, supplements and everything you ate, then open it, save it as a plan, or log it again today.
 * **Motion.** Cards fade and rise in, staggered, when a screen opens. Progress bars, the gradient calorie ring and the
   water level animate from their previous value when you log something. When your tree reaches a new stage it pops,
   spins a full turn and throws confetti, with haptic feedback on phones.
@@ -72,6 +75,14 @@ Measured on 5 weeks of sample data, for the render that follows a write:
 * **Swipe left** on a logged food to remove it; tap it to edit.
 * **Quick log:** the button on Today opens Add food for the meal that fits the time of day.
 * **Desktop shortcuts:** Alt+← / Alt+→ change day, Alt+T today, Alt+N log food, Alt+1–5 switch tabs.
+
+## Recipes and meal plans (Foods tab)
+
+* **Recipes:** build a dish from ingredients (any food, including online and custom ones), set how many servings it
+  makes, and NutriTrack works out the nutrition per serving. Recipes show up in Add food like any other food.
+* **Meal plans:** tap the bookmark on a meal on Today to save it, or save a whole day from the Garden calendar. Log a
+  saved meal into any meal from Foods → Meal plans or straight from the *Saved meals* row in Add food; a day plan logs
+  every meal at once.
 
 ## Editing what you logged
 
@@ -146,12 +157,14 @@ src/nutritrack/core/             Pure logic, no UI. Everything here is unit-test
   online.py                      Open Food Facts + USDA clients and parsers
   barcode.py                     Barcode decoding from photos (zxing-cpp)
   trends.py                      Weight trend, adaptive TDEE, period summaries
-  render3d.py                    Low-poly 3D tree renderer (Pillow)
+  render3d.py                    Low-poly 3D renderer: trees, seasons, the forest valley (Pillow)
+  recipes.py                     Recipes (ingredients → per-serving nutrition) and meal plans
 src/nutritrack/store.py          SQLite storage
 src/nutritrack/service.py        App logic shared by the screens
 src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden, trends)
   theme.py · motion.py           Design system; animation, haptics and confetti
-  tree_view.py · forest_view.py  Interactive 3D tree and 3D forest
+  tree_view.py · forest_view.py  Interactive 3D tree and forest valley
+  day_review.py                  Look back on a day; save meals/days as plans
   notify.py                      Reminders
 src/assets/                      Fonts (Plus Jakarta Sans) and pre-rendered trees
 tests/                           pytest suite

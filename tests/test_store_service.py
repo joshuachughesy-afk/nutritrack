@@ -162,3 +162,43 @@ def test_import_invalidates_cache(svc, tmp_path):
     assert svc.store.water_total(k) == 999
     svc.store.import_json(blob)
     assert svc.store.water_total(k) == 0
+
+
+# ---------- recipes & plans ----------
+def test_recipe_becomes_a_loggable_food(svc):
+    from nutritrack.core.recipes import Ingredient, Recipe
+    oats, milk = food("oats"), food("milk-2")
+    r = Recipe("r-1", "Overnight oats", servings=2, ingredients=[
+        Ingredient("oats", oats.name, 80, scale_nutrients(oats.per100, 80)),
+        Ingredient("milk-2", milk.name, 244, scale_nutrients(milk.per100, 244))])
+    svc.store.save_recipe(r)
+    f = svc.find_food("r-1")
+    assert f.source == "recipe" and f.servings[0].g == pytest.approx(162)
+    per_serving = (379 * 0.8 + 50 * 2.44) / 2
+    assert f.per100["kcal"] * f.servings[0].g / 100 == pytest.approx(per_serving)
+    assert svc.store.recipes()[0].ingredients[1].name == milk.name
+    svc.store.delete_recipe("r-1")
+    assert svc.find_food("r-1") is None and svc.store.recipes() == []
+
+
+def test_meal_and_day_plans(svc):
+    from nutritrack.core.recipes import Plan
+    k = today_key()
+    log(svc, k, "oats", 80, "breakfast"); log(svc, k, "banana", 118, "breakfast"); log(svc, k, "chicken-breast", 172, "lunch")
+    breakfast = Plan.from_entries("p-1", "My breakfast", "meal", [e for e in svc.store.entries(k) if e["meal"] == "breakfast"])
+    day = Plan.from_entries("p-2", "Training day", "day", svc.store.entries(k))
+    svc.store.save_plan(breakfast); svc.store.save_plan(day)
+    assert {p.name for p in svc.store.plans()} == {"My breakfast", "Training day"}
+    tomorrow = shift(k, 1)
+    assert svc.apply_plan(breakfast, tomorrow, meal="snacks") == 2
+    assert {e["meal"] for e in svc.store.entries(tomorrow)} == {"snacks"}     # meal plans go where you choose
+    svc.apply_plan(day, shift(k, 2))
+    assert sorted(e["meal"] for e in svc.store.entries(shift(k, 2))) == ["breakfast", "breakfast", "lunch"]  # days keep meals
+    assert round(day.totals()["kcal"]) == round(svc.totals(k).food["kcal"])
+
+
+def test_day_review(svc):
+    k = today_key()
+    log(svc, k, "oats", 80, "breakfast"); svc.store.add_water(k, 750)
+    r = svc.day_review(k)
+    assert r["score"] is not None and r["stage_name"] and r["totals"].water_ml == 750 and len(r["entries"]) == 1

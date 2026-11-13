@@ -231,8 +231,18 @@ def test_seasonal_trees_differ_and_winter_is_bare():
     assert len(oak["winter"]) < len(oak["summer"])            # no canopy in winter
     assert len(render3d.tree_mesh("pine", 4, "winter")) > 100  # evergreens keep their needles
     assert render3d.tree_png("oak", 4, 30, 64, "autumn") != render3d.tree_png("oak", 4, 30, 64, "summer")
-    forest = render3d.forest_png(((0, 0, "oak", 4), (3, 2, "pine", 5)), 35, 160, 105, "winter", 8)
+    forest = render3d.forest_png(((0, "oak", 4), (55, "pine", 5)), 35, 160, 100, "winter")
     assert forest[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_valley_hides_near_mountains_and_keeps_water_unfrozen():
+    from nutritrack.core import render3d
+    trees = ((10, "oak", 4), (40, "maple", 5))
+    front, back = render3d.valley_mesh(trees, "summer", view_angle=0), render3d.valley_mesh(trees, "summer", view_angle=180)
+    assert len(front) == len(back)                      # same scene, mountains swapped for the other side
+    near = [f for f in front if min(p[2] for p in f[:3]) > 12 and max(p[1] for p in f[:3]) > 2.5]
+    assert not near                                     # nothing tall between the camera and the valley
+    assert render3d.season_for(1) == "winter" and render3d.WATER["winter"].startswith("#")
 
 
 def test_update_entry_and_food_for_entry(svc):

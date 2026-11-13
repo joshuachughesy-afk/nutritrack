@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .core.foods import Food
+from .core.recipes import Plan, Recipe
 from .core.nutrition import Profile
 from .core.pacing import DEFAULT_SCHEDULE
 from .core.reminders import DEFAULT_REMINDERS
@@ -32,6 +33,8 @@ create table if not exists supplements (id text primary key, data text not null,
 create table if not exists doses (
   id text primary key, date text not null, supp_id text not null, time text not null, name text not null,
   n text not null, at real not null, unique(date, supp_id, time));
+create table if not exists recipes (id text primary key, data text not null, created real not null);
+create table if not exists plans (id text primary key, data text not null, created real not null);
 create table if not exists days (
   date text primary key, day_type text, species text, peak_stage integer default 0,
   garden text, notified text, weight_kg real);
@@ -144,6 +147,32 @@ class Store:
 
     def delete_custom_food(self, food_id: str) -> None:
         self._x("delete from custom_foods where id=?", (food_id,))
+
+    # ---------- recipes & plans ----------
+    def recipes(self) -> list[Recipe]:
+        return [Recipe.from_dict(json.loads(r["data"])) for r in self._q("select data from recipes order by created desc")]
+
+    def save_recipe(self, r: Recipe) -> None:
+        """Save a recipe and its loggable food (same id), so it shows up in search, recents and the log."""
+        created = self._q("select created from recipes where id=?", (r.id,))
+        self._x("insert or replace into recipes(id, data, created) values(?, ?, ?)",
+                (r.id, json.dumps(r.to_dict()), created[0]["created"] if created else time.time()))
+        self.save_custom_food(r.to_food())
+
+    def delete_recipe(self, recipe_id: str) -> None:
+        self._x("delete from recipes where id=?", (recipe_id,))
+        self.delete_custom_food(recipe_id)
+
+    def plans(self) -> list[Plan]:
+        return [Plan.from_dict(json.loads(r["data"])) for r in self._q("select data from plans order by created desc")]
+
+    def save_plan(self, p: Plan) -> None:
+        created = self._q("select created from plans where id=?", (p.id,))
+        self._x("insert or replace into plans(id, data, created) values(?, ?, ?)",
+                (p.id, json.dumps(p.to_dict()), created[0]["created"] if created else time.time()))
+
+    def delete_plan(self, plan_id: str) -> None:
+        self._x("delete from plans where id=?", (plan_id,))
 
     # ---------- food log ----------
     def entries(self, date: str) -> list[dict]:
@@ -262,7 +291,7 @@ class Store:
     # ---------- backup ----------
     def export_json(self) -> str:
         out = {"version": 2, "settings": {r["key"]: json.loads(r["value"]) for r in self._q("select * from settings")}}
-        for table in ("custom_foods", "entries", "water", "supplements", "doses", "days"):
+        for table in ("custom_foods", "entries", "water", "supplements", "doses", "days", "recipes", "plans"):
             out[table] = [dict(r) for r in self._q(f"select * from {table}")]
         return json.dumps(out, indent=1)
 
@@ -271,11 +300,11 @@ class Store:
         if not isinstance(data, dict) or data.get("version") != 2:
             raise ValueError("Not a NutriTrack (Python) backup")
         with self.lock:
-            for table in ("settings", "custom_foods", "entries", "water", "supplements", "doses", "days"):
+            for table in ("settings", "custom_foods", "entries", "water", "supplements", "doses", "days", "recipes", "plans"):
                 self.conn.execute(f"delete from {table}")
             for k, v in data["settings"].items():
                 self.conn.execute("insert into settings(key, value) values(?, ?)", (k, json.dumps(v)))
-            for table in ("custom_foods", "entries", "water", "supplements", "doses", "days"):
+            for table in ("custom_foods", "entries", "water", "supplements", "doses", "days", "recipes", "plans"):
                 for row in data.get(table, []):
                     cols = ", ".join(row)
                     self.conn.execute(f"insert into {table}({cols}) values({', '.join('?' * len(row))})", tuple(row.values()))
@@ -284,7 +313,7 @@ class Store:
 
     def reset(self) -> None:
         with self.lock:
-            for table in ("settings", "custom_foods", "entries", "water", "supplements", "doses", "days"):
+            for table in ("settings", "custom_foods", "entries", "water", "supplements", "doses", "days", "recipes", "plans"):
                 self.conn.execute(f"delete from {table}")
             self.conn.commit()
             self._invalidate()

@@ -154,6 +154,28 @@ class Service:
         return Food(entry["food_id"] or "entry", entry["name"], "Logged", [Serving(entry["amount_label"] or f"{g:g} g", g)],
                     per100, "custom")
 
+    # ---------- plans ----------
+    def apply_plan(self, plan, key: str, meal: str | None = None) -> int:
+        """Log every item of a plan on `key`. A meal plan goes into `meal` (default: the meal it was saved from)."""
+        for it in plan.items:
+            target = meal if (plan.kind == "meal" and meal) else it.meal
+            self.store.add_entry(key, target, it.name, dict(it.n), food_id=it.food_id, grams=it.grams,
+                                 amount_label=it.amount_label)
+        return len(plan.items)
+
+    def day_review(self, key: str) -> dict:
+        """Everything needed to look back on one day."""
+        from .core.garden import STAGES, stage_for
+        t, tot = self.targets_for(key), self.totals(key)
+        score = self.day_score(key)
+        scheduled, taken = self.dose_counts(key) if self.store.doses(key) else (0, 0)
+        entries = self.store.entries(key)
+        return {"date": key, "targets": t, "totals": tot, "score": score,
+                "stage": stage_for(score) if score is not None else None,
+                "stage_name": STAGES[stage_for(score)][1] if score is not None else None,
+                "species": self.species_for(key), "season": self.season(key), "entries": entries,
+                "doses": (taken, scheduled), "weight": self.store.day(key)["weight_kg"]}
+
     # ---------- seasons ----------
     def season(self, key: str | None = None) -> str:
         from .core.render3d import season_for

@@ -135,7 +135,8 @@ def test_fake_app_matches_real_app_interface():
         for node in ast.walk(ast.parse(p.read_text())):
             if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "app":
                 used.add(node.attr)
-    dynamic = {"supp_edit", "supp_draft", "progress_tab", "trend_days"}  # screen state set at runtime
+    dynamic = {"supp_edit", "supp_draft", "progress_tab", "trend_days", "foods_tab", "recipe_edit",
+               "recipe_draft"}  # screen state set at runtime
     real = set(dir(App)) | {"page", "store", "svc", "view", "date", "body", "notifier", "visible", "_last_screen"} | dynamic
     fake = set(dir(FakeApp)) | {"page", "store", "svc", "view", "date", "rendered", "notifier"} | dynamic
     assert not (used - real), f"screens use attributes App doesn't have: {sorted(used - real)}"
@@ -146,3 +147,22 @@ def test_greeting_covers_every_hour():
     expected = {**{h: "Good morning" for h in range(4, 12)}, **{h: "Good afternoon" for h in range(12, 17)},
                 **{h: "Good evening" for h in [*range(17, 24), *range(0, 4)]}}
     assert {h: today._greeting(h) for h in range(24)} == expected
+
+
+def test_foods_tabs_recipes_plans_and_day_review(app):
+    from nutritrack.core.recipes import Ingredient, Plan, Recipe
+    from nutritrack.ui import day_review
+    f = FOODS[0]
+    app.store.save_recipe(Recipe("r-1", "Bowl", 2, [Ingredient(f.id, f.name, 200, scale_nutrients(f.per100, 200))]))
+    app.store.save_plan(Plan.from_entries("p-1", "My lunch", "meal", app.store.entries(app.date)))
+    for tab in ("foods", "recipes", "plans"):
+        app.foods_tab, app.recipe_edit = tab, None
+        assert foods.build(app)
+    app.foods_tab, app.recipe_edit, app.recipe_draft = "recipes", "new", Recipe("r-2", "", 2, [])
+    assert foods.build(app)
+    add_food.open_sheet(app, "lunch", food=app.svc.find_food("r-1"))
+    day_review.open_review(app, app.date)
+    assert isinstance(app.page.dialogs[-1], ft.BottomSheet)
+    # a recipe never shows up among "my foods" (it has its own tab)
+    app.foods_tab = "foods"
+    assert "Bowl" not in str(foods.build(app))

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 MEAL_LABELS = {"breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner", "snacks": "Snacks"}
 
 
-def open_sheet(app: "App", meal: str, edit: dict | None = None) -> None:
+def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | None = None) -> None:
     """Add food to a meal, or (with `edit`) change a logged entry's amount, unit or meal."""
     content = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
     sheet = ft.BottomSheet(
@@ -36,11 +36,12 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None) -> None:
     # ---------- search ----------
     results = ft.Column(spacing=0)
 
-    SOURCE_TAGS = {"custom": "custom", "OFF": "Open Food Facts", "USDA": "USDA"}
+    SOURCE_TAGS = {"custom": "custom", "OFF": "Open Food Facts", "USDA": "USDA", "recipe": "recipe"}
 
     def result_tile(f: Food, fetch_full: bool = False) -> ft.Control:
         sv = f.servings[0]
-        tag = f"  · {SOURCE_TAGS[f.source]}" if f.source in SOURCE_TAGS else ""
+        online_usda = f.source == "USDA" and f.id.startswith("usda-")   # built-in foods are USDA-derived but untagged
+        tag = f"  · {SOURCE_TAGS[f.source]}" if f.source in SOURCE_TAGS and (f.source != "USDA" or online_usda) else ""
         return ft.ListTile(title=ft.Text(f.name, size=14),
                            subtitle=th.muted(f"{sv.label} · {fmt(f.per100['kcal'] * sv.g / 100)} kcal{tag}", 12),
                            dense=True, on_click=lambda _, food=f: (app.page.run_task(open_full, food) if fetch_full
@@ -85,6 +86,13 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None) -> None:
         foods = app.svc.all_foods()
         items: list[ft.Control] = []
         if not tokens:
+            meal_plans = [p for p in app.store.plans() if p.kind == "meal"]
+            if meal_plans:
+                items.append(th.muted("SAVED MEALS", 11, font_family=th.FONT_SEMI))
+                items.append(ft.Row([ft.Chip(label=ft.Text(f"{p.name} · {fmt(p.totals()['kcal'])} kcal", size=12),
+                                             leading=ft.Icon(ft.Icons.BOOKMARK, size=16),
+                                             on_click=lambda _, p=p: log_plan(p)) for p in meal_plans[:8]],
+                                    wrap=True, spacing=6, run_spacing=6))
             recents = [f for f in (app.svc.find_food(i) for i in app.store.recents()) if f]
             if recents:
                 items.append(th.muted("RECENT", 11, font_family=th.FONT_SEMI))
@@ -95,6 +103,12 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None) -> None:
             hits = [f for f in foods if all(t in f.name.lower() or t in f.category.lower() for t in tokens)]
             items = [result_tile(f) for f in hits] or [th.muted(f"Nothing saved matches “{q}”. Search online below, or create it under Foods.", 13)]
         results.controls = items
+
+    def log_plan(plan) -> None:
+        n = app.svc.apply_plan(plan, app.date, meal)
+        close()
+        app.render()
+        app.toast(f"Logged {n} item{'s' if n != 1 else ''} from “{plan.name}”")
 
     def picker() -> None:
         def on_change(e):
@@ -313,8 +327,10 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None) -> None:
         app.page.update()
 
     if edit:
-        food = app.svc.food_for_entry(edit)
-        detail(food, edit) if food else quick(edit)
+        entry_food = app.svc.food_for_entry(edit)
+        detail(entry_food, edit) if entry_food else quick(edit)
+    elif food is not None:
+        detail(food)
     else:
         picker()
     app.page.show_dialog(sheet)

@@ -9,6 +9,7 @@ import flet as ft
 from ..core.garden import SPECIES, STAGES, TREE_DAY, level_info, stage_for
 from ..service import pretty_date, today_key
 from . import theme as th
+from .day_review import open_review
 from .tree_view import TreeView, tree_src
 
 if TYPE_CHECKING:
@@ -98,8 +99,8 @@ def _garden(app: "App") -> list[ft.Control]:
             bg, border = ft.Colors.with_opacity(0.10, "#8a6a4a"), None
         cells.append(ft.Container(content, col=1, aspect_ratio=1, border_radius=8, bgcolor=bg, border=border, padding=2,
                                   alignment=ft.Alignment.CENTER, tooltip=tip,
-                                  on_click=(lambda _, key=k: app.go("today", key)) if sc is not None else None))
-    forest = th.card(th.heading("Calendar", th.muted("tap a tree to open that day", 12), icon=ft.Icons.CALENDAR_MONTH),
+                                  on_click=(lambda _, key=k: open_review(app, key)) if sc is not None else None))
+    forest = th.card(th.heading("Calendar", th.muted("tap a tree to look back", 12), icon=ft.Icons.CALENDAR_MONTH),
                      ft.ResponsiveRow(cells, columns=7, spacing=4, run_spacing=4))
 
     seed = svc.seed()

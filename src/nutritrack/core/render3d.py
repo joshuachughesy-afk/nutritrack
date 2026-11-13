@@ -289,7 +289,11 @@ SKY = (0.9, 0.95, 1.05)
 
 def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevation_deg: float = 22.0,
            supersample: int = 3, shadow: bool = True, snow: bool = False, height: int | None = None,
-           zoom: float = 0.385, center_y: float = 0.72) -> bytes:
+           zoom: float = 0.385, center_y: float = 0.72, camera_dist: float | None = None,
+           fog: tuple[float, float, tuple[int, int, int]] | None = None,
+           sky: tuple[tuple[int, int, int], tuple[int, int, int]] | None = None) -> bytes:
+    """Orthographic by default (single trees); with `camera_dist`, a perspective camera that far from the centre.
+    `fog` = (start, end, colour) fades distant faces toward the horizon; `sky` = (top, horizon) paints a backdrop."""
     from PIL import Image, ImageDraw, ImageFilter
 
     w_px, h_px = size, height or size
@@ -308,26 +312,46 @@ def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevatio
     ox, oy = ss / 2, ss_h * center_y
     tris = []
     white = (250, 252, 255)
+    D = camera_dist
     for a, b, c, col in faces:
         ta, tb, tc = xf(a), xf(b), xf(c)
         n = _norm(_cross(_sub(tb, ta), _sub(tc, ta)))
-        if n[2] <= 0:   # facing away from the camera
-            continue
-        if snow:  # snow settles on surfaces that face up
+        if D is None:
+            if n[2] <= 0:   # facing away from the camera
+                continue
+        else:
+            cen = _mul(_add(_add(ta, tb), tc), 1 / 3)
+            if cen[2] > D - 0.3 or _dot(n, (-cen[0], -cen[1], D - cen[2])) <= 0:  # behind or facing away
+                continue
+        if snow and not (col[2] > col[0] + 40 and col[2] > col[1]):  # snow settles on surfaces that face up (not water)
             up = _norm(_cross(_sub(b, a), _sub(c, a)))[1]
             if up > 0.55:
                 t = min(1.0, (up - 0.55) / 0.3) * 0.85
                 col = tuple(int(col[i] * (1 - t) + white[i] * t) for i in range(3))
         diff = max(0.0, _dot(n, LIGHT))
-        sky = 0.5 + 0.5 * n[1]
+        skylight = 0.5 + 0.5 * n[1]
         k = 0.42 + 0.62 * diff
-        rgb = tuple(max(0, min(255, int(col[i] * k * (0.92 + 0.08 * sky * SKY[i])))) for i in range(3))
+        rgb = tuple(max(0, min(255, int(col[i] * k * (0.92 + 0.08 * skylight * SKY[i])))) for i in range(3))
         depth = (ta[2] + tb[2] + tc[2]) / 3
-        pts = [(ox + p[0] * scale, oy - p[1] * scale) for p in (ta, tb, tc)]
+        if D is None:
+            pts = [(ox + p[0] * scale, oy - p[1] * scale) for p in (ta, tb, tc)]
+        else:
+            pts = [(ox + p[0] * scale * D / (D - p[2]), oy - p[1] * scale * D / (D - p[2])) for p in (ta, tb, tc)]
+            if fog:
+                dist = D - depth
+                t = max(0.0, min(1.0, (dist - fog[0]) / (fog[1] - fog[0]))) * 0.9
+                rgb = tuple(int(rgb[i] * (1 - t) + fog[2][i] * t) for i in range(3))
         tris.append((depth, pts, rgb))
     tris.sort(key=lambda t: t[0])
 
     img = Image.new("RGBA", (ss, ss_h), (0, 0, 0, 0))
+    if sky:  # vertical gradient backdrop, top colour to horizon colour
+        top, hor = sky
+        grad = Image.new("RGBA", (1, ss_h))
+        for yy in range(ss_h):
+            t = min(1.0, yy / (ss_h * 0.55))
+            grad.putpixel((0, yy), tuple(int(top[i] * (1 - t) + hor[i] * t) for i in range(3)) + (255,))
+        img = grad.resize((ss, ss_h))
     if shadow:  # soft contact shadow beneath the floating island
         sh = Image.new("RGBA", (ss, ss_h), (0, 0, 0, 0))
         ImageDraw.Draw(sh).ellipse([ox - scale * 0.8, oy + scale * 0.62, ox + scale * 0.8, oy + scale * 0.8], fill=(0, 0, 0, 70))
@@ -348,50 +372,102 @@ def tree_png(species: str, stage: int, angle: int = 30, size: int = 256, season:
     return render(tree_mesh(species, stage, season), angle_deg=angle, size=size, snow=season == "winter")
 
 
-# ---------- the whole forest ----------
-def forest_mesh(trees: tuple[tuple[int, int, str, int], ...], cols: int = 7, rows: int = 8, season: str = "summer") -> list[Face]:
-    """One landscape with a plot per day: trees = ((col, row, species, stage), ...)."""
-    rnd = random.Random(f"forest-{cols}-{rows}-{season}")
-    sp = 0.62
-    w, d = cols * sp, rows * sp
-    x0, z0 = -w / 2 + sp / 2, -d / 2 + sp / 2
-    grass, dirt, rock = _hex(GRASS.get(season, GRASS["summer"])), _hex("#8a6142"), _hex("#6e5a4b")
+# ---------- the whole forest: a valley ----------
+SKIES = {  # (top, horizon) per season
+    "spring": ((132, 190, 238), (226, 240, 236)),
+    "summer": ((118, 182, 236), (222, 238, 240)),
+    "autumn": ((150, 184, 222), (240, 228, 210)),
+    "winter": ((176, 196, 220), (236, 241, 246)),
+}
+WATER = {"winter": "#8fc3e2"}
+
+
+def _noise(x: float, z: float) -> float:
+    """Cheap smooth pseudo-noise for gently rolling ground."""
+    return (math.sin(x * 0.9 + z * 0.4) * 0.5 + math.sin(x * 0.37 - z * 0.83 + 1.7) * 0.35
+            + math.sin(x * 1.9 + z * 1.3 + 0.6) * 0.15)
+
+
+def _path_x(z: float) -> float:
+    return 1.6 * math.sin(z * 0.32 + 0.6)
+
+
+def _ground(x: float, z: float) -> float:
+    dx = x - _path_x(z)
+    hills = 0.85 * (1 - math.exp(-dx * dx / (2 * 3.2 ** 2)))        # gentle valley sides rising from the stream
+    far = max(0.0, math.hypot(x, z) - 11.0) * 0.25                     # the land rises softly toward the mountains
+    bumps = 0.16 * _noise(x, z) * min(1.0, abs(dx) / 1.2)              # keep the stream bed itself level
+    return hills + far + bumps - 0.12 * math.exp(-dx * dx / 0.15)
+
+
+def valley_mesh(trees: tuple[tuple[int, str, int], ...], season: str = "summer", slots: int = 56,
+                view_angle: float = 0.0) -> list[Face]:
+    """A wide valley: rolling hills, a winding stream and a ring of mountains. trees = ((slot, species, stage), ...)
+    with slot 0 the oldest day (far up the valley) and slots-1 today (closest to you)."""
+    rnd = random.Random(f"valley-{season}")
+    grass = _hex(GRASS.get(season, GRASS["summer"]))
+    hill = _vary(grass, random.Random(1), 0) if season == "winter" else tuple(int(c * 0.82) for c in grass)
+    water = _hex(WATER.get(season, "#5aa9d6"))
     faces: list[Face] = []
-    # Ground: a gently rolling grid of quads
-    gx, gz = cols + 1, rows + 1
-    hgt = [[rnd.uniform(-0.02, 0.02) for _ in range(gz + 1)] for _ in range(gx + 1)]
-    xs = [-w / 2 - sp / 2 + i * (w + sp) / gx for i in range(gx + 1)]
-    zs = [-d / 2 - sp / 2 + j * (d + sp) / gz for j in range(gz + 1)]
-    center = (0.0, -1.0, 0.0)
-    for i in range(gx):
-        for j in range(gz):
-            p = [(xs[i], hgt[i][j], zs[j]), (xs[i + 1], hgt[i + 1][j], zs[j]), (xs[i + 1], hgt[i + 1][j + 1], zs[j + 1]),
-                 (xs[i], hgt[i][j + 1], zs[j + 1])]
-            faces += [(*_outward((p[0], p[1], p[2]), center), _vary(grass, rnd, 0.05)),
-                      (*_outward((p[0], p[2], p[3]), center), _vary(grass, rnd, 0.05))]
-    # Dirt skirt and rocky underside along the edges
-    edge = [(xs[i], zs[0]) for i in range(gx + 1)] + [(xs[gx], zs[j]) for j in range(1, gz + 1)] + \
-           [(xs[i], zs[gz]) for i in range(gx - 1, -1, -1)] + [(xs[0], zs[j]) for j in range(gz - 1, 0, -1)]
-    for k in range(len(edge)):
-        (ax, az), (bx, bz) = edge[k], edge[(k + 1) % len(edge)]
-        a, b = (ax, 0.0, az), (bx, 0.0, bz)
-        a2, b2 = (ax * 0.97, -0.24, az * 0.97), (bx * 0.97, -0.24, bz * 0.97)
-        faces += [(*_outward((a, b, b2), (0, 0, 0)), _vary(dirt, rnd)), (*_outward((a, b2, a2), (0, 0, 0)), _vary(dirt, rnd))]
-        tip = (((ax + bx) / 2) * 0.55, -0.55 - rnd.uniform(0, 0.25), ((az + bz) / 2) * 0.55)
-        faces.append((*_outward((a2, b2, tip), (0, -0.2, 0)), _vary(rock, rnd, 0.12)))
-    faces += _ground_details(rnd, min(w, d) * 0.6, season, count=30)
-    for col, row, species, stage in trees:
+    step, R = 0.75, 16.5
+    n = int(2 * R / step)
+    xs = [-R + i * step for i in range(n + 1)]
+    H = [[_ground(x, z) for z in xs] for x in xs]
+    for i in range(n):
+        for j in range(n):
+            x0, x1, z0, z1 = xs[i], xs[i + 1], xs[j], xs[j + 1]
+            cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+            if math.hypot(cx, cz) > R + 0.3:
+                continue
+            p = [(x0, H[i][j], z0), (x1, H[i + 1][j], z0), (x1, H[i + 1][j + 1], z1), (x0, H[i][j + 1], z1)]
+            dx = abs(cx - _path_x(cz))
+            h = (H[i][j] + H[i + 1][j + 1]) / 2
+            if dx < 0.42 and math.hypot(cx, cz) < 15.5:
+                col = water
+            else:
+                t = max(0.0, min(1.0, h / 1.6))
+                col = tuple(int(grass[k] * (1 - t) + hill[k] * t) for k in range(3))
+            below = (cx, h - 5, cz)
+            faces += [(*_outward((p[0], p[1], p[2]), below), _vary(col, rnd, 0.04)),
+                      (*_outward((p[0], p[2], p[3]), below), _vary(col, rnd, 0.04))]
+    # Mountains all round; only the ones beyond the valley from this viewpoint are drawn (the near ones would block it)
+    rock, snowcap = _hex("#7d8a86"), _hex("#f4f7fa")
+    va = math.radians(view_angle)
+    for k in range(14):
+        ang = k * 2 * math.pi / 14 + rnd.uniform(-0.15, 0.15)
+        d = rnd.uniform(17.0, 19.5)
+        mx, mz, mh, mr = math.cos(ang) * d, math.sin(ang) * d, rnd.uniform(3.5, 6.0), rnd.uniform(3.0, 4.4)
+        if -mx * math.sin(va) + mz * math.cos(va) > -6.0:  # view-space depth: keep only the far side
+            continue
+        base = _ground(mx, mz) - 0.5
+        faces += transform(_cone(0.0, mh * 0.62, mr, rock, rnd, 7), 1.0, (mx, base, mz))
+        faces += transform(_cone(0.0, mh * 0.38, mr * 0.38, snowcap, rnd, 7), 1.0, (mx, base + mh * 0.62 - 0.05, mz))
+    # A few boulders on the slopes, sparse on purpose
+    for _ in range(10):
+        x, z = rnd.uniform(-7, 7), rnd.uniform(-7, 7)
+        if abs(x - _path_x(z)) > 2.6:
+            faces += _icosphere((x, _ground(x, z) + 0.05, z), (0.22, 0.14, 0.2), _hex("#9aa59a"), rnd, 0, 0.2)
+    # Trees along both banks, oldest far away, today in front
+    for slot, species, stage in trees:
+        z = -11.0 + 17.0 * slot / max(1, slots - 1)
+        side = 1 if slot % 2 else -1
+        x = _path_x(z) + side * (0.95 + random.Random(slot).uniform(0.0, 0.9))
         tree = tree_mesh(species, stage, season, island=False, detail=0)
-        faces += transform(tree, 0.42, (x0 + col * sp + rnd.uniform(-0.06, 0.06), 0.0, z0 + row * sp + rnd.uniform(-0.06, 0.06)))
+        faces += transform(tree, 0.62, (x, _ground(x, z) - 0.02, z))
     return faces
 
 
 @lru_cache(maxsize=64)
-def forest_png(trees: tuple[tuple[int, int, str, int], ...], angle: int = 35, width: int = 640, height: int = 420,
-               season: str = "summer", rows: int = 8) -> bytes:
-    faces = forest_mesh(trees, 7, rows, season)
-    return render(faces, angle_deg=angle, size=width, height=height, elevation_deg=34, supersample=2, shadow=False,
-                  snow=season == "winter", zoom=0.185, center_y=0.52)
+def forest_png(trees: tuple[tuple[int, str, int], ...], angle: int = 0, width: int = 640, height: int = 400,
+               season: str = "summer") -> bytes:
+    top, horizon = SKIES.get(season, SKIES["summer"])
+    return render(valley_mesh(trees, season, view_angle=angle), angle_deg=angle, size=width, height=height,
+                  elevation_deg=VALLEY_CAM["elevation"], supersample=2, shadow=False, snow=season == "winter",
+                  zoom=VALLEY_CAM["zoom"], center_y=VALLEY_CAM["center_y"], camera_dist=VALLEY_CAM["dist"],
+                  fog=(VALLEY_CAM["dist"] + 2, VALLEY_CAM["dist"] + 22, horizon), sky=(top, horizon))
+
+
+VALLEY_CAM = {"dist": 23.0, "elevation": 19.0, "zoom": 0.105, "center_y": 0.62}
 
 
 def available() -> bool:

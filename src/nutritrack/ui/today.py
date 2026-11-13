@@ -14,6 +14,7 @@ from ..core.pacing import compute_pace
 from ..service import pretty_date, shift, today_key
 from . import add_food, motion
 from . import theme as th
+from .day_review import save_entries_as_plan
 from .tree_view import TreeView
 
 if TYPE_CHECKING:
@@ -244,7 +245,11 @@ def _meal(app: "App", meal: str, label: str, icon) -> ft.Control:
             app.render()
         actions.append(ft.TextButton("Copy yesterday", icon=ft.Icons.REPLAY_ROUNDED, on_click=copy))
 
-    return th.card(th.heading(label, th.display(f"{fmt(kcal)} kcal", 14, color=th.MUTED), icon=icon),
+    trailing: list[ft.Control] = [th.display(f"{fmt(kcal)} kcal", 14, color=th.MUTED)]
+    if entries:
+        trailing.append(ft.IconButton(ft.Icons.BOOKMARK_ADD_OUTLINED, icon_size=20, tooltip="Save as meal plan",
+                                      on_click=lambda _: save_entries_as_plan(app, entries, "meal", f"My {label.lower()}")))
+    return th.card(th.heading(label, ft.Row(trailing, spacing=0, tight=True), icon=icon),
                    *rows, ft.Row(actions, wrap=True), spacing=8)
 
 
