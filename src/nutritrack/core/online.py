@@ -42,9 +42,9 @@ def http_json(url: str, headers: dict | None = None) -> dict:
 def friendly_error(err: dict) -> str:
     code = (err.get("code") or "").upper()
     if code == "API_KEY_INVALID":
-        return "USDA rejected the API key. Check the key under Profile → Food databases."
+        return "USDA rejected the API key. Check the key under Profile → Help & feedback → Advanced."
     if code == "OVER_RATE_LIMIT":
-        return "USDA's shared demo key is busy. Add your own free key under Profile → Food databases."
+        return "USDA's shared demo key is busy. Add your own free key under Profile → Help & feedback → Advanced."
     return err.get("message") or code or "Request failed"
 
 

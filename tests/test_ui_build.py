@@ -167,3 +167,88 @@ def test_foods_tabs_recipes_plans_and_day_review(app):
     # a recipe never shows up among "my foods" (it has its own tab)
     app.ui.foods_tab = "foods"
     assert "Bowl" not in str(foods.build(app))
+
+
+# ---------- UI overhaul: sub-pages, onboarding, state ----------
+@pytest.mark.parametrize("page", ["body", "training", "targets", "reminders", "appearance", "data", "help"])
+def test_profile_pages_build(app, page):
+    app.ui.profile_page = page
+    assert profile.build(app)
+
+
+def test_onboarding_steps_build_and_finish_saves_profile(tmp_path):
+    import asyncio
+
+    from nutritrack.ui import onboarding
+    st = Store(tmp_path / "ob.db")
+    a = FakeApp(st)
+    a.ui.onboarding.update(training="hybrid", sex="female", age=29, weight_kg=64, height_cm=168, goal="maintain",
+                           load="high", days={1, 3, 5})
+    for step in range(len(onboarding.STEPS)):
+        a.ui.onboarding["step"] = step
+        assert onboarding.build(a)
+    p = onboarding._profile(a.ui.onboarding)
+    assert p.training_type == "hybrid" and p.activity == "very" and p.training_days == (1, 3, 5)
+
+    a.ui.onboarding["step"] = len(onboarding.STEPS) - 1
+    a.ui.onboarding["reminders"] = False
+    controls = onboarding.build(a)
+    btn = controls[-1].content.controls[0]
+    asyncio.run(btn.on_click(None))
+    assert st.profile().training_type == "hybrid" and a.view == "today" and a.ui.onboarding == {}
+
+
+def test_ui_state_closes_sub_pages():
+    s = UIState()
+    s.supp_edit, s.supp_picker = "new", True
+    assert s.sub_open("supps") and s.close_sub("supps")
+    assert s.supp_edit is None and s.supp_picker is False and not s.sub_open("supps")
+    s.profile_page = "body"
+    assert s.close_sub("profile") and s.profile_page is None
+    assert not s.close_sub("today")
+
+
+def test_stack_picker_food_editor_and_clash_fix(app):
+    app.ui.supp_picker = True
+    assert supps.build(app)
+    app.ui.supp_picker = False
+    app.ui.foods_tab, app.ui.food_edit = "foods", "new"
+    assert foods.build(app)
+    # iron + calcium at the same time is flagged, with a one-tap move
+    iron = next(t for t in SUPP_TEMPLATES if "iron" in t.name.lower()).make()
+    calcium = next(t for t in SUPP_TEMPLATES if "calcium" in t.name.lower()).make()
+    iron.times = calcium.times = ["10:00"]
+    app.store.save_supplement(iron)
+    app.store.save_supplement(calcium)
+    clashes = supps.iron_clashes(app.store.supplements())
+    assert clashes and clashes[0][0] == "10:00"
+
+
+def test_last_amounts_for_one_tap_relog(app):
+    f = FOODS[0]
+    app.store.add_entry(today_key(), "dinner", f.name, scale_nutrients(f.per100, 250), food_id=f.id, grams=250,
+                        amount_label="250 g")
+    assert app.store.last_amounts([f.id])[f.id] == (250.0, "250 g")
+
+
+def test_quick_meal_skips_logged_meals(tmp_path):
+    from nutritrack.ui.app import App
+    st = Store(tmp_path / "m.db")
+    fake = type("P", (), {})()
+    obj = App.__new__(App)
+    obj.store, obj.date = st, today_key()
+    meal = App.current_meal(obj)
+    st.add_entry(today_key(), meal, "x", scale_nutrients(FOODS[0].per100, 10), grams=10)
+    nxt = App.current_meal(obj)
+    assert nxt != meal or meal == "snacks"
+    del fake
+
+
+def test_contrast_helper_darkens_in_light_mode():
+    from nutritrack.ui import theme as th
+    th.set_mode(False)
+    assert th.ink("#e08a2b") != "#e08a2b"
+    th.set_mode(True)
+    assert th.ACCENT == "#6fd39a"
+    th.set_mode(False)
+    assert th.ACCENT == "#1f7a4d"

@@ -2,7 +2,7 @@
 
 Everything goes to a small rotating log file in the app's private storage (`logs/nutritrack.log`, 3 × 256 KB):
 app start-up, every unhandled error with its traceback (including Flet event-handler errors), and failed background
-work such as notification scheduling or online lookups. Profile → About & diagnostics shows the recent log and copies
+work such as notification scheduling or online lookups. Profile → Help & feedback shows the recent log and copies
 a report you can paste into a GitHub issue. Nothing is sent anywhere automatically.
 """
 from __future__ import annotations

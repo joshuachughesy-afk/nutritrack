@@ -244,7 +244,8 @@ def _tree_card(app: "App") -> ft.Control | None:
                           th.muted(f"A day of {TREE_DAY}+ points grows a full tree and keeps your streak going. Every 7 days "
                                    "in a row earns a shield (you can hold 2). A shield covers one missed day, so a busy "
                                    "day doesn't wipe out your streak.", th.T.LABEL))
-        pills = [ft.Container(th.pill(ft.Icons.LOCAL_FIRE_DEPARTMENT, f"{h.streak} days", th.FIRE), on_click=shield_info,
+        pills = [ft.Container(th.pill(ft.Icons.LOCAL_FIRE_DEPARTMENT, f"{h.streak} days" if h.streak else "Start a streak",
+                                      th.FIRE), on_click=shield_info,
                               tooltip=f"{h.streak}-day streak")]
         if h.shields:
             pills.append(ft.Container(th.pill(ft.Icons.SHIELD, str(h.shields), th.SHIELD),
@@ -254,7 +255,7 @@ def _tree_card(app: "App") -> ft.Control | None:
     sky = ft.LinearGradient(begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER, colors=th.SKY[app.dark])
     items: list[ft.Control] = [ft.Row([ft.Container(tree.control, width=140), ft.Column(info, spacing=8, expand=True)],
                                       spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)]
-    if is_today:
+    if is_today and svc.has_log(key):  # tips only once there's a day to build on
         scheduled, taken = svc.dose_counts(key)
         tips = growth_tips(ds, t, tot.total, tot.water_ml, scheduled, taken, svc.gaps(key, 2), svc.water_fmt)
         # Calories and water already have their own cards, so lead with the tip they don't show.

@@ -104,15 +104,12 @@ class App:
         self.go(NAV[e.control.selected_index][0])
 
     def go(self, view: str, date: str | None = None) -> None:
-        changed = view != self.view or (date and date != self.date)
         if view != self.view or (view == self.view and self.ui.sub_open(view) and not date):
             self.ui.close_sub(view)  # switching tabs (or re-tapping the current one) closes editors
         self.view = view
         if date:
             self.date = date
         self.render()
-        if changed:  # each screen opens at the top
-            self.page.run_task(self.body.scroll_to, offset=0)
 
     def render(self) -> None:
         from . import foods, garden, profile, supps, today  # local import avoids import cycles
@@ -128,11 +125,14 @@ class App:
         screen = ("onboarding", str(self.ui.onboarding.get("step", 0))) if onboard else \
             (self.view, self.date, self.ui.key(self.view))
         motion.entering = screen != self._last_screen
+        new_screen = motion.entering and self._last_screen is not None
         self._last_screen = screen
         self.page.navigation_bar.selected_index = [n[0] for n in NAV].index(self.view)
         self.grew = False
         if not onboard and self.view == "today" and self.date == today_key():
             self._check_growth()
+        if not onboard and self.view == "garden":
+            self.svc.finalize_garden()  # settle finished days before showing the forest
         builder = onboarding.build if onboard else {"today": today.build, "foods": foods.build, "supps": supps.build,
                                                     "garden": garden.build, "profile": profile.build}[self.view]
         try:
@@ -146,6 +146,8 @@ class App:
         self.page.floating_action_button = self._quick_log_button() if fab else None
         self.page.update()
         self.page.run_task(motion.flush)
+        if new_screen:  # every screen and sub-page opens at the top
+            self.page.run_task(self.body.scroll_to, offset=0)
         if hasattr(self, "notifier"):
             self.notifier.request_sync()
 

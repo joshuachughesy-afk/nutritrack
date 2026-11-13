@@ -50,15 +50,16 @@ class ForestView:
                             border_radius=18)
         gesture = ft.GestureDetector(content=self.img, on_horizontal_drag_update=self._drag,
                                      mouse_cursor=ft.MouseCursor.GRAB)
-        self.fly_btn = ft.IconButton(ft.Icons.FLIGHT_TAKEOFF_ROUNDED, tooltip="Fly around", on_click=self._fly,
-                                     style=ft.ButtonStyle(bgcolor=ft.Colors.with_opacity(0.85, ft.Colors.SURFACE)))
+        self.fly_btn = ft.FilledTonalButton("Fly around", icon=ft.Icons.FLIGHT_TAKEOFF_ROUNDED, on_click=self._fly,
+                                            style=ft.ButtonStyle(bgcolor=ft.Colors.with_opacity(0.88, ft.Colors.SURFACE),
+                                                                 padding=ft.Padding.symmetric(horizontal=12)))
         count = len(self.trees)
         self.control = th.card(
-            th.heading("Your forest", th.muted(f"{count} tree{'s' if count != 1 else ''} · {self.season}", 12),
+            th.heading("Your forest", f"{count} tree{'s' if count != 1 else ''} planted · {self.season}",
                        icon=ft.Icons.FOREST),
             ft.Container(ft.Stack([gesture, ft.Container(self.fly_btn, right=8, top=8)]), aspect_ratio=W / H,
                          border_radius=18, clip_behavior=ft.ClipBehavior.HARD_EDGE),
-            th.muted("Drag to look around · today is closest, older days further up the valley", 11),
+            th.muted("Drag to look around. Today is closest; older days are further up the valley.", th.T.CAPTION),
             spacing=10,
         )
 

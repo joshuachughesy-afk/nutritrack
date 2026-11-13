@@ -1,6 +1,6 @@
 [project]
 name = "nutritrack"
-version = "2.1.0"
+version = "2.2.0"
 description = "Calories, macros, micronutrients, water and supplements, with reminders and a garden that grows with your consistency."
 readme = "README.md"
 requires-python = ">=3.10"

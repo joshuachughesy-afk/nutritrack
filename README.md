@@ -4,7 +4,7 @@ A local-first calorie, macro and micronutrient tracker with water, supplements, 
 grows with your consistency, written entirely in **Python** with [Flet](https://flet.dev). One codebase runs as a
 desktop app, a web app, and a native **Android / iOS** app.
 
-Research behind the design: [`docs/research.md`](docs/research.md)
+Research behind the design: [`docs/research.md`](docs/research.md) · UI review and overhaul: [`docs/ui-review.md`](docs/ui-review.md)
 
 ## Run it
 
@@ -41,7 +41,7 @@ can analyse directly with pandas or any SQLite tool.
 * **Your forest valley.** Progress → Garden shows the last 8 weeks of daily trees along a winding stream in a wide valley,
   oldest far up the valley and today closest to you, with mountains on the horizon (a perspective camera with distance
   haze). Drag to orbit, or tap the fly button for a full flight around it.
-* **Look back on any day.** Tap a tree in the Garden calendar to see that day's tree, score, calories and macros against
+* **Look back on any day.** Tap a day in the Garden calendar to see that day's tree, score, calories and macros against
   target, water, supplements and everything you ate, then open it, save it as a plan, or log it again today.
 * **Motion.** Cards fade and rise in, staggered, when a screen opens. Progress bars, the gradient calorie ring and the
   water level animate from their previous value when you log something. When your tree reaches a new stage it pops,
@@ -71,18 +71,23 @@ Measured on 5 weeks of sample data, for the render that follows a write:
 
 ## Everyday conveniences
 
-* **Undo:** removing a food (✕, swipe left, or Delete in the editor) shows *Undo* for a few seconds.
-* **Swipe left** on a logged food to remove it; tap it to edit.
-* **Quick log:** the button on Today opens Add food for the meal that fits the time of day.
-* **Desktop shortcuts:** Alt+← / Alt+→ change day, Alt+T today, Alt+N log food, Alt+1–5 switch tabs.
+* **First run** is a one-minute setup: what you train for, your week, about you, your goal, then a *Your fuel plan* reveal
+  and your first seed (with an opt-in for pace reminders).
+* **Undo everywhere:** every add, copy, water tap and removal (swipe left, or Delete in the editor) offers *Undo*.
+* **One-tap re-log:** Recent foods in Add food show the amount you last had, with a + to log it again.
+* **Search just works:** online results (✓ Verified USDA or Brand label) appear as you type.
+* **Quick log:** the button on Today opens Add food for the next meal you haven't logged.
+* **Plain words:** the science (g/kg ranges, BMR, citations) sits behind ⓘ buttons and in Profile → Training.
+* **Desktop shortcuts:** Alt+← / Alt+→ change day, Alt+T today, Alt+N log food, Alt+1–5 switch tabs, Esc goes back.
 
-## Recipes and meal plans (Foods tab)
+## Foods, recipes and saved meals
 
+* **My foods:** a searchable list of foods you created or picked from online search; *New food* opens the label editor.
 * **Recipes:** build a dish from ingredients (any food, including online and custom ones), set how many servings it
   makes, and NutriTrack works out the nutrition per serving. Recipes show up in Add food like any other food.
-* **Meal plans:** tap the bookmark on a meal on Today to save it, or save a whole day from the Garden calendar. Log a
-  saved meal into any meal from Foods → Meal plans or straight from the *Saved meals* row in Add food; a day plan logs
-  every meal at once.
+* **Saved meals:** tap *Save meal* under a meal on Today, or save a whole day from the Garden calendar. Log it again
+  from Foods → Saved meals (into the day you're viewing) or straight from the *Saved meals* row in Add food; a saved
+  day logs every meal at once.
 
 ## Editing what you logged
 
@@ -93,7 +98,7 @@ recognises clean serving multiples ("172 g" opens as "1 breast"). Quick adds ope
 
 * **Open Food Facts**: free, no key. Brand search and barcodes. Crowd-sourced, so check odd values against the label.
 * **USDA FoodData Central**: lab-measured whole foods with full micronutrients. The shared `DEMO_KEY` is rate-limited,
-  so get a free key at <https://api.data.gov/signup/> and paste it in **Profile → Food databases**.
+  so get a free key at <https://api.data.gov/signup/> and paste it in **Profile → Help & feedback → Advanced**.
 
 Barcode photos are decoded on the device with `zxing-cpp`. If a phone build doesn't include it, the scanner falls back
 to typing the barcode number.
@@ -114,7 +119,7 @@ make assets    # re-render the bundled seasonal trees after changing core/render
 * **Logs** go to `logs/nutritrack.log` in the app's storage (rotating, 3 × 256 KB): start-up, handler errors with
   tracebacks, background failures (reminders, online lookups, animations, the reminder loop). Background loops stop when
   a session closes, so closed tabs don't leave work running.
-* **Bug reports:** Profile → About & diagnostics → *Copy diagnostics* gives versions, record counts and the recent log
+* **Bug reports:** Profile → Help & feedback → *Copy diagnostics* gives versions, record counts and the recent log
   (no food or body data), ready for the GitHub bug-report template.
 * **Guard-rail tests** catch whole classes of UI bugs: every screen builds against real data, no expanded child sits in
   a wrapping row (a Flutter layout error), and the test double stays in sync with the real `App` interface.
@@ -131,7 +136,8 @@ pytest -q
 * `tests/test_store_service.py`: database, carb cycling, creatine water, garden freezing, reminders and backups.
 * `tests/test_stage_c.py`: Open Food Facts and USDA parsing (real and API-format fixtures), barcode decoding, weight
   trend, adaptive TDEE recovering a known burn rate even with ±1 kg water noise, and the service functions.
-* `tests/test_ui_build.py`: every screen builds against a real database.
+* `tests/test_ui_build.py`: every screen, sub-page and onboarding step builds against a real database; onboarding saves
+  a profile; UI state closes sub-pages; supplement clash detection; one-tap re-log; dark-mode colours.
 
 ## Python rebuild stages
 
@@ -140,6 +146,7 @@ pytest -q
 | **A. Core + logging** | All nutrition science, training database, foods, supplements, pacing, garden scoring and reminder rules ported to tested Python; SQLite store; Today screen (date nav, training/rest toggle, calorie ring, carb-first macro bars, meals with copy-yesterday, micronutrients with the supplement share), Add-food sheet (search, recents, servings or grams, live preview, quick add), custom foods, Profile with onboarding, carb-cycling table and training recommendations | ✅ Done |
 | **B. Water, supplements, pace, reminders, garden** | Water card (35 ml/kg + training + creatine, with breakdown); supplement checklist on Today with "due" flags; Supplements screen (stack, pause/edit/remove, timing tips, upper-limit and iron/calcium conflict checks, daily totals, 15 templates, editor with creatine field); pace check with "expected by now" markers and evening micronutrient gaps; **OS-scheduled notifications** through `flet-notifications` on Android/iOS/macOS/Windows (daily supplement reminders with a **Mark taken** action, live check-ins, water nudges; re-synced on every change), with an in-app reminder loop on web and Linux; reminder settings and test; tree card with growth tips and streak; Garden screen (level, stats, 8-week forest, seed picker, scoring rules); backup export and import | ✅ Done |
 | **C. Extended data** | Online food search: **Open Food Facts** (branded foods, no key; picking a result fetches the full product) and **USDA FoodData Central** (lab-measured whole foods; add your free key in Profile → Food databases); online picks are saved for offline use and recents. **Barcode scanning**: camera capture or a photo decoded with zxing-cpp, or type the number. **Progress → Trends**: 7/30/90-day ranges, weight log with scale-vs-trend chart, calories-vs-target chart, macro/water/supplement averages, micronutrient coverage with consistently-low flags. **Adaptive TDEE**: intake minus the least-squares weight slope × 7,700 kcal/kg, blended with the formula by confidence and capped at ±25%; optional switch; profile weight follows your trend | ✅ Done |
+| **D. UI overhaul** | Reviewed by an engineer, a marketer and a first-time user ([`docs/ui-review.md`](docs/ui-review.md)). Design tokens and shared components; dark-aware colours with AA-contrast text; typed UI state with back navigation; onboarding wizard with a fuel-plan reveal; Today reordered around calories, macros and an expected-by-now pin with one coaching line; compact meals, water, supplements and a nutrient summary; automatic online search with verified/brand badges and one-tap re-log; Foods list-first with Saved meals; Stack with one-tap timing fixes; Progress with a shared header, numbered calendar and "Your real daily burn"; Profile split into seven pages with safe restore/erase | ✅ Done |
 
 
 ## Structure
@@ -161,8 +168,9 @@ src/nutritrack/core/             Pure logic, no UI. Everything here is unit-test
   recipes.py                     Recipes (ingredients → per-serving nutrition) and meal plans
 src/nutritrack/store.py          SQLite storage
 src/nutritrack/service.py        App logic shared by the screens
-src/nutritrack/ui/               Flet screens (today, add_food, foods, profile, supps, garden, trends)
-  theme.py · motion.py           Design system; animation, haptics and confetti
+src/nutritrack/ui/               Flet screens (onboarding, today, add_food, foods, supps, garden, trends, profile)
+  theme.py · components.py       Design tokens, dark-aware colours; shared components (stat tile, metric row, ...)
+  state.py · motion.py           Typed UI state and back navigation; animation, haptics and confetti
   tree_view.py · forest_view.py  Interactive 3D tree and forest valley
   day_review.py                  Look back on a day; save meals/days as plans
   notify.py                      Reminders
