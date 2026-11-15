@@ -138,6 +138,30 @@ class Service:
                 micro_pct={m.key: tot.total[m.key] / t.micros[m.key].target for m in MICROS if not m.limit}))
         return rows
 
+    # ---------- snap now, log later ----------
+    def photos(self, key: str, meal: str | None = None) -> list[dict]:
+        return [p for p in self.store.get("photo_queue", []) if p["date"] == key and (meal is None or p["meal"] == meal)]
+
+    def add_photo(self, key: str, meal: str, image: bytes) -> dict:
+        """Keep a small thumbnail of a meal photo to log properly later (stored on the device only)."""
+        import base64
+        import io
+        import uuid
+
+        from PIL import Image, ImageOps
+        im = ImageOps.exif_transpose(Image.open(io.BytesIO(image))).convert("RGB")
+        im.thumbnail((320, 320))
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=72)
+        item = {"id": uuid.uuid4().hex[:10], "date": key, "meal": meal, "thumb": base64.b64encode(buf.getvalue()).decode(),
+                "created": datetime.now().isoformat(timespec="minutes")}
+        queue = self.store.get("photo_queue", [])[-29:]  # keep at most 30
+        self.store.set("photo_queue", queue + [item])
+        return item
+
+    def remove_photo(self, photo_id: str) -> None:
+        self.store.set("photo_queue", [p for p in self.store.get("photo_queue", []) if p["id"] != photo_id])
+
     def week_recap(self, today: str | None = None):
         """The last full week (Mon–Sun) compared with the week before."""
         from .core.recap import build_recap, last_full_week

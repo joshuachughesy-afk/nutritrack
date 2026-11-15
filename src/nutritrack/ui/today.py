@@ -316,6 +316,10 @@ def _meal(app: "App", meal: str, label: str, icon) -> ft.Control:
         app.toast(f"Copied {len(ids)} item{'s' if len(ids) != 1 else ''} from yesterday",
                   undo=lambda: [app.store.remove_entry(i) for i in ids if i])
 
+    photos = [_photo_row(app, meal, ph) for ph in app.svc.photos(app.date, meal)]
+
+    if not entries and photos:
+        return th.card(th.heading(label, "photo to log", icon=icon), *photos, spacing=8)
     if not entries:  # an empty meal is one compact row, not a whole card
         actions: list[ft.Control] = []
         if yesterday:
@@ -357,7 +361,27 @@ def _meal(app: "App", meal: str, label: str, icon) -> ft.Control:
     actions = [ft.FilledTonalButton("Add food", icon=ft.Icons.ADD_ROUNDED, on_click=open_add),
                ft.TextButton("Save meal", icon=ft.Icons.BOOKMARK_ADD_OUTLINED,
                              on_click=lambda _: save_entries_as_plan(app, entries, "meal", f"My {label.lower()}"))]
-    return th.card(th.heading(label, f"{fmt(kcal)} kcal", icon=icon), *rows, ft.Row(actions, wrap=True, spacing=4), spacing=8)
+    return th.card(th.heading(label, f"{fmt(kcal)} kcal", icon=icon), *photos, *rows, ft.Row(actions, wrap=True, spacing=4),
+                   spacing=8)
+
+
+def _photo_row(app: "App", meal: str, ph: dict) -> ft.Control:
+    """A meal photo saved to log later: tap Log it to open Add food with the photo as a reminder."""
+    import base64
+
+    def discard(_):
+        app.svc.remove_photo(ph["id"])
+        app.render()
+        app.toast("Photo removed", undo=lambda: app.store.set("photo_queue", app.store.get("photo_queue", []) + [ph]))
+
+    return ft.Container(ft.Row([
+        ft.Image(src=base64.b64decode(ph["thumb"]), width=52, height=52, fit=ft.BoxFit.COVER, border_radius=10),
+        ft.Column([ft.Text("Photo to log", size=th.T.LABEL + 1, font_family=th.FONT_SEMI),
+                   th.muted(f"Saved {ph['created'][11:16]}", th.T.CAPTION)], spacing=0, expand=True),
+        ft.FilledTonalButton("Log it", on_click=lambda _: add_food.open_sheet(app, meal, photo=ph)),
+        ft.IconButton(ft.Icons.CLOSE, icon_size=18, tooltip="Discard photo", on_click=discard),
+    ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        padding=8, border_radius=th.R.MD, bgcolor=ft.Colors.with_opacity(0.08, th.ACCENT))
 
 
 # ---------- micronutrients ----------

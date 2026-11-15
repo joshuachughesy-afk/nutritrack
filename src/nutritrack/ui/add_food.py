@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -22,8 +23,9 @@ if TYPE_CHECKING:
 
 
 
-def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | None = None) -> None:
-    """Add food to a meal, or (with `edit`) change a logged entry's amount, unit or meal."""
+def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | None = None, photo: dict | None = None) -> None:
+    """Add food to a meal, or (with `edit`) change a logged entry's amount, unit or meal. With `photo`, the meal photo
+    you saved earlier is shown as a reminder and cleared once you've logged something."""
     content = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
     height = min(680, max(480, int((getattr(app.page, "height", None) or 760) * 0.88)))
     sheet = ft.BottomSheet(
@@ -42,6 +44,8 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
 
     def logged(name: str, entry_id: str, target_meal: str) -> None:
         """Every add confirms itself and can be undone."""
+        if photo:
+            app.svc.remove_photo(photo["id"])
         motion.haptic("light")
         close()
         app.render()
@@ -181,11 +185,110 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
         fill_results(query["q"])
         content.controls = [
             header(f"Add to {MEAL_LABELS[meal]}{day_note}"), ft.Row([search]),
-            ft.Row([ft.FilledTonalButton("Scan barcode", icon=ft.Icons.QR_CODE_SCANNER, on_click=lambda _: scan()),
-                    ft.TextButton("Quick add calories", icon=ft.Icons.BOLT, on_click=lambda _: quick())], wrap=True, spacing=4),
+            ft.Row([ft.FilledTonalButton("Describe it", icon=ft.Icons.EDIT_NOTE, on_click=lambda _: describe()),
+                    ft.FilledTonalButton("Scan", icon=ft.Icons.QR_CODE_SCANNER, on_click=lambda _: scan()),
+                    ft.TextButton("Quick add", icon=ft.Icons.BOLT, on_click=lambda _: quick()),
+                    *([] if photo else [ft.TextButton("Photo for later", icon=ft.Icons.PHOTO_CAMERA_OUTLINED,
+                                                      on_click=lambda _: app.page.run_task(snap))])],
+                   wrap=True, spacing=4),
+            *([ft.Row([ft.Image(src=base64.b64decode(photo["thumb"]), width=64, height=64, fit=ft.BoxFit.COVER,
+                                border_radius=10),
+                       th.muted("Your photo from earlier. Log what's in it and it'll be cleared.", th.T.CAPTION,
+                                expand=True)], spacing=10)] if photo else []),
             results, online_head, status, online_results, more,
         ]
         app.page.update()
+
+    # ---------- snap now, log later ----------
+    async def snap() -> None:
+        try:
+            files = await ft.FilePicker().pick_files(file_type=ft.FilePickerFileType.IMAGE, with_data=True,
+                                                     dialog_title="Photo of your meal")
+            if not files:
+                return
+            data = files[0].bytes or open(files[0].path, "rb").read()
+            await asyncio.to_thread(app.svc.add_photo, app.date, meal, data)
+        except Exception as ex:
+            log.exception("saving a meal photo failed")
+            app.toast(f"Couldn't use that photo: {ex}")
+            return
+        close()
+        app.render()
+        app.toast(f"Photo saved to {MEAL_LABELS[meal].lower()}. Log it when you have a minute.")
+
+    # ---------- describe it (typed logging) ----------
+    def describe() -> None:
+        from ..core.describe import parse
+        box = ft.TextField(hint_text="e.g. 2 eggs, 2 slices of toast and a banana", multiline=True, min_lines=2,
+                           max_lines=4, autofocus=True, border_radius=12, value=query.get("described", ""), expand=True)
+        preview = ft.Column(spacing=4)
+        log_btn = ft.FilledButton("Log all", icon=ft.Icons.CHECK, disabled=True, expand=True)
+        state: dict = {"items": []}
+
+        def refresh(_=None):
+            query["described"] = box.value or ""
+            items = parse(box.value or "", app.svc.all_foods())
+            state["items"] = items
+            rows: list[ft.Control] = []
+            total = 0.0
+            for it in items:
+                if it.food is None:
+                    rows.append(ft.Container(ft.Row([
+                        ft.Icon(ft.Icons.HELP_OUTLINE, size=18, color="#e08a2b"),
+                        ft.Text(f"“{it.text}”: not found", size=th.T.LABEL, expand=True),
+                        ft.TextButton("Search", on_click=lambda _, q=it.text: (query.update(q=q), picker()))]),
+                        padding=ft.Padding.symmetric(horizontal=6)))
+                    continue
+                kcal = it.food.per100["kcal"] * it.grams / 100
+                total += kcal
+                rows.append(ft.Container(ft.Row([
+                    ft.Icon(ft.Icons.CHECK_CIRCLE if it.confident else ft.Icons.INFO_OUTLINE, size=18,
+                            color=th.ACCENT if it.confident else "#e08a2b"),
+                    ft.Column([ft.Text(it.food.name, size=th.T.LABEL + 1, font_family=th.FONT_SEMI, max_lines=1,
+                                       overflow=ft.TextOverflow.ELLIPSIS),
+                               th.muted(f"{it.label} · {fmt(kcal)} kcal" + ("" if it.confident else " · best guess"),
+                                        th.T.CAPTION)], spacing=0, expand=True),
+                    ft.IconButton(ft.Icons.CLOSE, icon_size=18, tooltip="Leave this one out",
+                                  on_click=lambda _, t=it.text: drop(t)),
+                ], spacing=8), padding=ft.Padding.symmetric(horizontal=6, vertical=2)))
+            found = [it for it in items if it.food]
+            if found:
+                rows.append(th.muted(f"{len(found)} item{'s' if len(found) != 1 else ''} · {fmt(total)} kcal", th.T.CAPTION))
+            preview.controls = rows
+            log_btn.disabled = not found
+            log_btn.content = f"Log {len(found)} item{'s' if len(found) != 1 else ''}" if found else "Log all"
+            app.page.update()
+
+        def drop(phrase: str) -> None:
+            from ..core.describe import split_items
+            box.value = ", ".join(x for x in split_items(box.value or "") if x != phrase)
+            refresh()
+
+        def log_all(_):
+            ids = []
+            for it in state["items"]:
+                if it.food is None:
+                    continue
+                if it.food.source in ("OFF", "USDA"):
+                    app.svc.remember_food(it.food)
+                ids.append(app.store.add_entry(app.date, meal, it.food.name, scale_nutrients(it.food.per100, it.grams),
+                                               food_id=it.food.id, grams=it.grams, amount_label=it.label))
+            query["described"] = ""
+            motion.haptic("light")
+            close()
+            app.render()
+            app.toast(f"Logged {len(ids)} item{'s' if len(ids) != 1 else ''} to {MEAL_LABELS[meal].lower()}",
+                      undo=lambda: [app.store.remove_entry(i) for i in ids])
+
+        box.on_change = refresh
+        log_btn.on_click = log_all
+        content.controls = [header("Describe what you ate", back=True), ft.Row([box]),
+                            th.muted("Separate foods with commas or “and”. Amounts like 150 g, 2 slices, a cup or "
+                                     "half work; edit the text to change one. Matched on this device against your foods "
+                                     "and the common-foods list.",
+                                     th.T.CAPTION),
+                            preview, ft.Row([log_btn])]
+        refresh()
 
     # ---------- barcode ----------
     def scan() -> None:
