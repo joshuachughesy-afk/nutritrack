@@ -55,8 +55,8 @@ def open_review(app: "App", key: str) -> None:
     score = r["score"]
 
     def stat(label: str, value: str, sub: str = "") -> ft.Control:
-        return ft.Container(ft.Column([th.muted(label, 11, font_family=th.FONT_SEMI), th.display(value, 18),
-                                       *([th.muted(sub, 11)] if sub else [])], spacing=0),
+        return ft.Container(ft.Column([th.muted(label, th.T.CAPTION, font_family=th.FONT_SEMI), th.display(value, 18),
+                                       *([th.muted(sub, th.T.CAPTION)] if sub else [])], spacing=0),
                             expand=True, padding=10, border_radius=14, bgcolor=ft.Colors.SURFACE_CONTAINER)
 
     header = ft.Row([
@@ -79,9 +79,9 @@ def open_review(app: "App", key: str) -> None:
 
     taken, scheduled = r["doses"]
     stats = ft.Row([
-        stat("CALORIES", fmt(tot.total["kcal"]), f"of {t.kcal:,}"),
-        stat("WATER", app.svc.water_fmt(tot.water_ml), f"of {app.svc.water_fmt(t.water_ml)}"),
-        stat("SUPPS", f"{taken}/{scheduled}" if scheduled else "–", "doses taken"),
+        stat("Calories", fmt(tot.total["kcal"]), f"of {t.kcal:,}"),
+        stat("Water", app.svc.water_fmt(tot.water_ml), f"of {app.svc.water_fmt(t.water_ml)}"),
+        stat("Supplements", f"{taken}/{scheduled}" if scheduled else "–", "doses taken"),
     ], spacing=8)
 
     meals: list[ft.Control] = []

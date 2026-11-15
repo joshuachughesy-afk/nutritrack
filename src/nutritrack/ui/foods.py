@@ -50,7 +50,7 @@ def _food_editor(app: "App") -> list[ft.Control]:
         v = f0.per100.get(k, 0) * sv0.g / 100
         return fmt(v) if v else None
 
-    name = ft.TextField(label="Name", hint_text="e.g. Mum's lasagna", dense=True, border_radius=12,
+    name = ft.TextField(label="Name", hint_text="e.g. Mum's lasagna", dense=True, border_radius=12, expand=True,
                         value=f0.name if f0 else "")
     serving_label = ft.TextField(label="Serving", value=sv0.label, dense=True, border_radius=12, expand=True)
     serving_g = th.num_field("Weight", fmt(sv0.g), suffix="g", expand=True)
@@ -104,7 +104,7 @@ def _food_editor(app: "App") -> list[ft.Control]:
         actions.append(ft.TextButton("Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=delete,
                                      style=ft.ButtonStyle(color=th.ink(th.STATUS_COLORS["over"]))))
     return [cx.back_header("New food" if not f0 else "Edit food", close, subtitle="Copy the values from the label, per serving"),
-            th.card(name, ft.Row([serving_label, serving_g], spacing=10),
+            th.card(ft.Row([name]), ft.Row([serving_label, serving_g], spacing=10),
                     ft.Row([macro_fields["kcal"], macro_fields["protein"]], spacing=10),
                     ft.Row([macro_fields["carbs"], macro_fields["fat"]], spacing=10),
                     ft.Row([macro_fields["fiber"], macro_fields["sugar"]], spacing=10), check,
@@ -218,7 +218,7 @@ def _recipes(app: "App") -> list[ft.Control]:
 def _recipe_editor(app: "App") -> list[ft.Control]:
     r: Recipe = app.ui.recipe_draft
     foods = [f for f in app.svc.all_foods() if f.source != "recipe"]
-    name = ft.TextField(label="Recipe name", value=r.name, dense=True, border_radius=12, max_length=80,
+    name = ft.TextField(label="Recipe name", value=r.name, dense=True, border_radius=12, expand=True,
                         hint_text="e.g. Chicken burrito bowl")
     servings = th.num_field("Servings it makes", fmt(r.servings), expand=True)
     preview = ft.Column(spacing=6)
@@ -272,7 +272,7 @@ def _recipe_editor(app: "App") -> list[ft.Control]:
                             for f in hits]
         app.page.update()
 
-    search = ft.TextField(hint_text="Add an ingredient…", prefix_icon=ft.Icons.SEARCH, dense=True, border_radius=12,
+    search = ft.TextField(hint_text="Add an ingredient…", prefix_icon=ft.Icons.SEARCH, dense=True, border_radius=12, expand=True,
                           on_change=find)
     servings.on_change = lambda _: (refresh_preview(), app.page.update())
 
@@ -295,7 +295,8 @@ def _recipe_editor(app: "App") -> list[ft.Control]:
     draw_ingredients(); refresh_preview()
     return [cx.back_header("New recipe" if app.ui.recipe_edit == "new" else "Edit recipe", lambda: cancel(None),
                            trailing=ft.FilledButton("Save", on_click=save)),
-            th.card(name, ft.Row([servings]), th.label("Ingredients"), ingredients, search, results, spacing=10),
+            th.card(ft.Row([name]), ft.Row([servings]), th.label("Ingredients"), ingredients, ft.Row([search]), results,
+                    spacing=10),
             th.card(preview, spacing=8),
             ft.Row([ft.FilledButton("Save recipe", icon=ft.Icons.CHECK, on_click=save, expand=True)])]
 

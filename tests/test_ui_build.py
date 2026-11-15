@@ -263,3 +263,9 @@ def test_today_cards_are_tagged_for_partial_refresh(app):
     assert {box.content.data for box in row.controls} == {"water", "supps"}
     for name in today.CARDS:
         assert today.card(app, name) is not None
+
+
+def test_clash_fix_time_always_moves():
+    assert supps.clash_fix_time("10:00", ["10:00"]) == "13:00"
+    assert supps.clash_fix_time("21:00", ["21:00"]) == "18:00"      # used to 'move' to 21:00 again
+    assert supps.clash_fix_time("10:00", ["10:00", "13:00"]) == "07:00"

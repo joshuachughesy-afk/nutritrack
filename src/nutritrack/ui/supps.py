@@ -36,6 +36,15 @@ def iron_clashes(supps: list[Supplement]) -> list[tuple[str, Supplement, list[Su
     return out
 
 
+def clash_fix_time(time: str, taken: list[str]) -> str:
+    """A time at least 2 hours from `time` (3 hours later, or earlier if that runs past 21:00) not already used."""
+    t = to_min(time)
+    for cand in (t + 180, t - 180, t + 240, t - 240, t + 120, t - 120):
+        if 6 * 60 <= cand <= 21 * 60 + 30 and from_min(cand) not in taken:
+            return from_min(cand)
+    return from_min(max(6 * 60, t - 180))
+
+
 def build(app: "App") -> list[ft.Control]:
     if app.ui.supp_edit is not None:
         return _editor(app, app.ui.supp_edit)
@@ -63,7 +72,7 @@ def build(app: "App") -> list[ft.Control]:
     fixes: list[ft.Control] = []
     for time, iron, blockers in iron_clashes(supps):
         for b in blockers:
-            new_time = from_min(min(to_min(time) + 180, 21 * 60))
+            new_time = clash_fix_time(time, b.times)
 
             def move(_, b=b, old=time, new=new_time):
                 b.times = sorted({new if x == old else x for x in b.times})
