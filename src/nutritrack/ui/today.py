@@ -29,18 +29,39 @@ MEALS = [("breakfast", "Breakfast", ft.Icons.EGG_ALT_OUTLINED), ("lunch", "Lunch
          ("dinner", "Dinner", ft.Icons.DINNER_DINING_OUTLINED), ("snacks", "Snacks", ft.Icons.COOKIE_OUTLINED)]
 
 
+# Cards a small change can refresh on their own (see App.refresh): name -> builder(app, targets, totals).
+CARDS = {
+    "summary": lambda app, t, tot: _summary(app, t, tot),
+    "tree": lambda app, t, tot: _tree_card(app),
+    "water": lambda app, t, tot: _water(app, t, tot),
+    "supps": lambda app, t, tot: _supp_checklist(app),
+    "micros": lambda app, t, tot: _micros(app, t, tot),
+}
+
+
+def card(app: "App", name: str, t=None, tot=None) -> ft.Control | None:
+    """Build one named card, tagged so App.refresh can find and swap it later."""
+    t = t or app.svc.targets_for(app.date)
+    tot = tot or app.svc.totals(app.date)
+    c = CARDS[name](app, t, tot)
+    if c is not None:
+        c.data = name
+    return c
+
+
 def build(app: "App") -> list[ft.Control]:
     svc, key = app.svc, app.date
     t = svc.targets_for(key)
     tot = svc.totals(key)
-    controls: list[ft.Control] = [_header(app), _day_type(app, t), _summary(app, t, tot)]
-    tree = _tree_card(app)
+    controls: list[ft.Control] = [_header(app), _day_type(app, t), card(app, "summary", t, tot)]
+    tree = card(app, "tree", t, tot)
     if tree:
         controls.append(tree)
     controls += [_meal(app, m, label, icon) for m, label, icon in MEALS]
-    controls.append(ft.ResponsiveRow([ft.Container(_water(app, t, tot), col={"xs": 12, "md": 6}),
-                                      ft.Container(_supp_checklist(app), col={"xs": 12, "md": 6})], spacing=16, run_spacing=16))
-    controls.append(_micros(app, t, tot))
+    controls.append(ft.ResponsiveRow([ft.Container(card(app, "water", t, tot), col={"xs": 12, "md": 6}),
+                                      ft.Container(card(app, "supps", t, tot), col={"xs": 12, "md": 6})],
+                                     spacing=16, run_spacing=16))
+    controls.append(card(app, "micros", t, tot))
     if key == today_key() and app.store.day(key).get("weight_kg") is None:
         controls.append(_weigh_in(app))
     return controls
@@ -215,7 +236,7 @@ def _tree_card(app: "App") -> ft.Control | None:
     nxt = STAGES[stage + 1] if stage + 1 < len(STAGES) else None
     grew = bool(getattr(app, "grew", False)) and is_today
 
-    tree = TreeView(svc.species_for(key), stage, size=150, grew=grew, on_tap=lambda _: app.go("garden"),
+    tree = TreeView(svc.species_for(key), stage, size=128, grew=grew, on_tap=lambda _: app.go("garden"),
                     season=svc.season(key))
     track = ft.Row([ft.Container(height=6, expand=True, border_radius=99,
                                  bgcolor=th.ACCENT_SOFT if score >= lo else ft.Colors.with_opacity(0.22, ft.Colors.ON_SURFACE),
@@ -375,7 +396,8 @@ def _micros(app: "App", t, tot) -> ft.Control:
         items.append(micro_row(m, target, pct, status, tot))
         g = gaps.get(m.key)
         if g and g.foods:
-            items.append(th.muted("Try: " + ", ".join(n.split(",")[0].lower() for n, _, _ in g.foods), th.T.CAPTION))
+            names = list(dict.fromkeys(n.split(",")[0].lower() for n, _, _ in g.foods))  # "Salmon, Atlantic" ×2
+            items.append(th.muted("Try: " + ", ".join(names), th.T.CAPTION))
     if not items:
         items.append(cx.note("Every vitamin and mineral is covered today.", "good"))
 
@@ -400,7 +422,7 @@ def _water(app: "App", t, tot) -> ft.Control:
     def add(ml, lbl):
         motion.haptic("light")
         app.store.add_water(app.date, ml)
-        app.render()
+        app.refresh("water", "summary", "tree")
         app.toast(f"Added {lbl} of water", undo=lambda: app.store.undo_water(app.date))
 
     level_start = motion.start_value(f"water:{app.date}", min(pct, 1))
@@ -459,7 +481,7 @@ def _supp_checklist(app: "App") -> ft.Control:
     def toggle(s, time):
         motion.haptic("light")
         app.store.toggle_dose(app.date, s, time)
-        app.render()
+        app.refresh("supps", "tree", "micros")
 
     rows: list[ft.Control] = []
     for s, time in doses:

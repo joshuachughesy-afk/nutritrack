@@ -35,6 +35,7 @@ class FakeApp:
             def mark_from_payload(self, p): pass
         self.notifier = _N()
     def render(self): self.rendered += 1
+    def refresh(self, *names): self.rendered += 1
     def go(self, view, date=None): self.view = view
     dark = False
     visible = True
@@ -252,3 +253,13 @@ def test_contrast_helper_darkens_in_light_mode():
     assert th.ACCENT == "#6fd39a"
     th.set_mode(False)
     assert th.ACCENT == "#1f7a4d"
+
+
+def test_today_cards_are_tagged_for_partial_refresh(app):
+    controls = today.build(app)
+    tags = {c.data for c in controls if isinstance(getattr(c, "data", None), str)}
+    assert {"summary", "tree", "micros"} <= tags
+    row = next(c for c in controls if isinstance(c, ft.ResponsiveRow))
+    assert {box.content.data for box in row.controls} == {"water", "supps"}
+    for name in today.CARDS:
+        assert today.card(app, name) is not None

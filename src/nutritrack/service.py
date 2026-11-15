@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from .core.foods import FOODS, Food
-from .core.garden import (STAGES, SPECIES, DayScore, History, level_info, score_day, summarize_history)
+from .core.garden import (REWARDS, SPECIES, STAGES, DayScore, History, level_info, score_day, summarize_history,
+                          unlocked_rewards)
 from .core.nutrition import (DEFAULT_TRAINING_DAYS, Nutrients, Targets, day_targets, fmt_water, sum_nutrients,
                              weekday_sun0)
 from .core.pacing import micro_gaps
@@ -289,7 +290,21 @@ class Service:
             self.store.set("garden", {**g, "last_level": lvl})
             unlocked = [s.name for s in SPECIES.values() if s.level == lvl]
             msgs.append(f"🎉 Garden level {lvl}!" + (f" Unlocked: {', '.join(unlocked)}" if unlocked else ""))
+        # New things in the valley (rewards). The first check only records what's already earned, so existing
+        # users aren't flooded with celebrations for rewards they reached long ago.
+        have = set(self.rewards())
+        seen = self.store.get("rewards_seen")
+        if seen is None:
+            self.store.set("rewards_seen", sorted(have))
+        elif have - set(seen):
+            self.store.set("rewards_seen", sorted(have | set(seen)))
+            names = [r.name.lower() for r in REWARDS if r.key in have - set(seen)]
+            msgs.append(f"✨ New in your valley: {', '.join(names)}")
         return msgs
+
+    def rewards(self) -> tuple[str, ...]:
+        _, h = self.history()
+        return unlocked_rewards(h, level_info(h.points).level)
 
     # ---------- reminders ----------
     def _now_min(self, now: datetime) -> int:

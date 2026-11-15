@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 
 import flet as ft
 
-from ..core.garden import SPECIES, STAGES, TREE_DAY, level_info, stage_for
+from ..core.garden import (SPECIES, STAGES, TREE_DAY, level_info, needs_text, next_reward, reward_progress, rewards_status,
+                           stage_for)
 from ..service import pretty_date, today_key
 from . import components as cx
 from . import theme as th
@@ -145,8 +146,31 @@ def _garden(app: "App") -> list[ft.Control]:
                                "that covers one missed day.", th.T.CAPTION),
                       ft.Row([th.chip(f"{name} {lo}+", th.ACCENT) for lo, name, _ in STAGES], wrap=True, spacing=6))
 
+    # Rewards: what's in the valley, and the next thing to work toward
+    status = rewards_status(h, lv.level)
+    nxt = next_reward(h, lv.level)
+    got = sum(1 for _, ok, _ in status if ok)
+    tiles = []
+    for r, ok, left in status:
+        tiles.append(ft.Container(ft.Column([
+            ft.Icon(getattr(ft.Icons, r.icon, ft.Icons.STAR) if ok else ft.Icons.LOCK_OUTLINE, size=22,
+                    color=th.ACCENT if ok else th.MUTED),
+            ft.Text(r.name, size=th.T.CAPTION, font_family=th.FONT_SEMI, text_align=ft.TextAlign.CENTER, max_lines=2),
+        ], spacing=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER), col={"xs": 4, "sm": 2}, padding=8,
+            border_radius=th.R.MD, opacity=1 if ok else 0.75,
+            bgcolor=ft.Colors.with_opacity(0.10, th.ACCENT) if ok else ft.Colors.SURFACE_CONTAINER,
+            tooltip=r.blurb if ok else f"{r.blurb}. Needs {needs_text(r, left)}"))
+    reward_items: list[ft.Control] = [th.heading("Your valley", f"{got} of {len(status)} unlocked", icon=ft.Icons.LANDSCAPE)]
+    if nxt:
+        r, what = nxt
+        have = reward_progress(r, h, lv.level)
+        reward_items += [th.muted(f"Next: {r.name.lower()}, {r.blurb[0].lower() + r.blurb[1:]}. Needs {what}.", th.T.LABEL),
+                         th.bar(have / r.need, th.ACCENT, height=8)]
+    reward_items.append(ft.ResponsiveRow(tiles, spacing=8, run_spacing=8))
+    rewards_card = th.card(*reward_items, spacing=10)
+
     from .forest_view import ForestView
-    return [ForestView(app).control, hero, stats, calendar, seed_card,
+    return [ForestView(app).control, hero, stats, rewards_card, calendar, seed_card,
             ft.Row([ft.TextButton("How your tree grows", icon=ft.Icons.HELP_OUTLINE, on_click=how)],
                    alignment=ft.MainAxisAlignment.CENTER)]
 

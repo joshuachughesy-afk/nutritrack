@@ -181,6 +181,8 @@ SPECIES_COLORS = {
     "maple": ("#e8823a", "#6b4430", None),
     "birch": ("#a3cf5c", "#ece7da", None),
     "golden": ("#f2c94c", "#7a5a2a", "#fff3b0"),
+    "jacaranda": ("#9b7fe0", "#5e4636", "#e3d6ff"),
+    "ginkgo": ("#e8d35a", "#6e5a3a", None),
 }
 FRUIT = "#e5484d"
 AUTUMN_LEAF = {"oak": "#d98a2e", "cherry": "#e0663f", "maple": "#c43d2a", "birch": "#e8c23a"}
@@ -218,12 +220,19 @@ def tree_mesh(species: str, stage: int, season: str = "summer", island: bool = T
         faces += _icosphere((-0.11, 0.42, 0.0), (0.13, 0.035, 0.07), _hex("#78c257"), rnd, 1, 0.05)
         faces += _icosphere((0.11, 0.47, 0.01), (0.13, 0.035, 0.07), _hex("#62ad46"), rnd, 1, 0.05)
         return faces
-    h = {2: 0.5, 3: 0.72, 4: 0.86, 5: 0.9}[stage]
-    r = {2: 0.34, 3: 0.48, 4: 0.6, 5: 0.63}[stage]
-    tw = {2: 0.065, 3: 0.095, 4: 0.12, 5: 0.125}[stage]
+    # Each stage has its own silhouette: a thin sapling with one small crown, a young tree, a broad mighty tree and a
+    # flourishing tree with flowers at its feet, so growth is visible at a glance (not just a slightly bigger tree).
+    h = {2: 0.46, 3: 0.62, 4: 0.86, 5: 0.94}[stage]
+    r = {2: 0.2, 3: 0.4, 4: 0.6, 5: 0.7}[stage]
+    tw = {2: 0.035, 3: 0.075, 4: 0.12, 5: 0.135}[stage]
+    if stage == 5 and island:  # wildflowers around the base
+        for _ in range(16):
+            ang, d = rnd.uniform(0, 2 * math.pi), rnd.uniform(0.32, 0.62)
+            col = _hex(rnd.choice(["#f2c94c", "#ffffff", "#eb7fb0", "#b48ef0"]))
+            faces += _icosphere((math.cos(ang) * d, 0.035, math.sin(ang) * d), (0.035, 0.02, 0.035), col, rnd, 0, 0.1)
     if species == "pine":
         faces += _frustum(0.0, h * 0.5, tw, tw * 0.7, trunk, rnd, 6)
-        tiers = 3 if stage < 4 else 4
+        tiers = {2: 1, 3: 2, 4: 3, 5: 4}[stage]
         tier_h, step = r * 1.0, r * 0.5
         cones = []
         for i in range(tiers):
@@ -252,9 +261,10 @@ def tree_mesh(species: str, stage: int, season: str = "summer", island: bool = T
                 faces += _limb(mid, twig, tw * 0.2, tw * 0.08, trunk, rnd, 4)
                 faces += _icosphere(tip, (0.05, 0.03, 0.05), _hex("#ffffff"), rnd, 0, 0.1)
             return faces
+        sides = {2: 0, 3: 2, 4: 4, 5: 5}[stage]
         clusters = [(0, h + r * 0.55, 0, 1.0)] + [
             (math.cos(a) * r * 0.62, h + r * 0.25 + rnd.uniform(-0.05, 0.08), math.sin(a) * r * 0.62, 0.72)
-            for a in [rnd.uniform(0, 2 * math.pi) + k * 2 * math.pi / (3 if stage < 4 else 4) for k in range(3 if stage < 4 else 4)]]
+            for a in [rnd.uniform(0, 2 * math.pi) + k * 2 * math.pi / max(sides, 1) for k in range(sides)]]
         for cx, cy, cz, k in clusters:
             rr = r * k
             faces += _icosphere((cx, cy, cz), (rr * 0.78, rr * 0.7 * stretch, rr * 0.78), leaf, rnd, detail, 0.14)
@@ -400,8 +410,114 @@ def _ground(x: float, z: float) -> float:
     return hills + far + bumps - 0.12 * math.exp(-dx * dx / 0.15)
 
 
+def _box(cx: float, y0: float, cz: float, w: float, h: float, d: float, color, rnd, yaw: float = 0.0) -> list[Face]:
+    """An axis-aligned box (optionally turned by `yaw` radians), built from a 4-sided frustum."""
+    faces = _frustum(0.0, h, 0.70710678, 0.70710678, color, rnd, 4)
+    c, s_ = math.cos(yaw + math.pi / 4), math.sin(yaw + math.pi / 4)
+    out = []
+    for f in faces:
+        pts = []
+        for x, y, z in f[:3]:
+            x, z = x * w, z * d
+            pts.append((cx + x * c - z * s_, y0 + y, cz + x * s_ + z * c))
+        out.append((*pts, f[3]))
+    return out
+
+
+def _decor(extras: tuple[str, ...], season: str, rnd: random.Random) -> list[Face]:
+    """Rewards that appear in the valley as you keep going (see core.garden.REWARDS)."""
+    faces: list[Face] = []
+    wood, dark_wood = _hex("#8a6142"), _hex("#5c3b22")
+    g = _ground
+    if "flowers" in extras and season != "winter":
+        for _ in range(70):
+            z = rnd.uniform(-10, 6)
+            x = _path_x(z) + rnd.choice((-1, 1)) * rnd.uniform(0.6, 3.2)
+            col = _hex(rnd.choice(["#f2c94c", "#ffffff", "#eb7fb0", "#b48ef0", "#ff8a5c"]))
+            faces += _icosphere((x, g(x, z) + 0.05, z), (0.07, 0.04, 0.07), col, rnd, 0, 0.1)
+    if "stones" in extras:
+        for k in range(5):
+            z = 3.2 + rnd.uniform(-0.1, 0.1)
+            x = _path_x(z) - 0.5 + k * 0.25
+            faces += _icosphere((x, g(x, z) + 0.02, z + (k % 2) * 0.12), (0.12, 0.05, 0.11), _hex("#a7aea6"), rnd, 0, 0.15)
+    if "bridge" in extras:
+        z = -3.5
+        x0 = _path_x(z)
+        y = g(x0, z) + 0.18
+        faces += _box(x0, y, z, 1.5, 0.06, 0.55, wood, rnd)
+        for sx in (-0.65, 0.65):
+            for sz in (-0.25, 0.25):
+                faces += _box(x0 + sx, y - 0.2, z + sz, 0.06, 0.55, 0.06, dark_wood, rnd)
+        for sz in (-0.25, 0.25):
+            faces += _box(x0, y + 0.3, z + sz, 1.4, 0.05, 0.05, dark_wood, rnd)
+    if "bench" in extras:
+        z = 4.2
+        x = _path_x(z) + 2.2
+        y = g(x, z)
+        faces += _box(x, y + 0.22, z, 0.7, 0.05, 0.22, wood, rnd, 0.3)
+        faces += _box(x, y + 0.42, z - 0.1, 0.7, 0.18, 0.04, wood, rnd, 0.3)
+        for sx in (-0.28, 0.28):
+            faces += _box(x + sx, y, z, 0.05, 0.22, 0.18, dark_wood, rnd, 0.3)
+    if "lanterns" in extras:
+        for z in (-8, -5, -2, 1, 4):
+            x = _path_x(z) + 1.6 * (1 if z % 2 else -1)
+            y = g(x, z)
+            faces += _box(x, y, z, 0.05, 0.6, 0.05, dark_wood, rnd)
+            faces += _icosphere((x, y + 0.66, z), (0.08, 0.09, 0.08), _hex("#ffd36b"), rnd, 0, 0.0)
+    if "cabin" in extras:
+        x, z = _path_x(-6.5) + 4.2, -6.5
+        y = g(x, z) - 0.05
+        faces += _box(x, y, z, 1.4, 0.9, 1.1, _hex("#9a6b45"), rnd, 0.4)
+        roof = _cone(0.0, 0.7, 1.15, _hex("#7a3b2e"), rnd, 4)
+        faces += [(*[(px * 1.0 + x, py + y + 0.9, pz + z) for px, py, pz in f[:3]], f[3]) for f in roof]
+        faces += _box(x + 0.35, y + 1.0, z, 0.18, 0.55, 0.18, _hex("#6e6e6e"), rnd)
+        faces += _box(x + 0.55, y + 0.3, z + 0.45, 0.28, 0.4, 0.02, _hex("#ffe08a"), rnd, 0.4)  # lit window
+    if "deer" in extras:
+        x, z = _path_x(-0.5) - 2.6, -0.5
+        y = g(x, z)
+        fur = _hex("#a0663c")
+        faces += _icosphere((x, y + 0.52, z), (0.32, 0.17, 0.14), fur, rnd, 1, 0.05)
+        for lx in (-0.2, 0.2):
+            for lz in (-0.07, 0.07):
+                faces += _frustum(0.0, 0.42, 0.03, 0.025, fur, rnd, 4, x=x + lx, z=z + lz)
+        faces += _limb((x + 0.26, y + 0.6, z), (x + 0.4, y + 0.85, z), 0.06, 0.05, fur, rnd, 5)
+        faces += _icosphere((x + 0.45, y + 0.88, z), (0.11, 0.07, 0.07), fur, rnd, 0, 0.05)
+        for ez in (-0.05, 0.05):  # antlers
+            faces += _limb((x + 0.43, y + 0.93, z + ez), (x + 0.38, y + 1.12, z + ez * 3), 0.015, 0.008, dark_wood, rnd, 3)
+    if "fox" in extras:
+        x, z = _path_x(2.5) + 1.9, 2.5
+        y = g(x, z)
+        orange = _hex("#e0752d")
+        faces += _icosphere((x, y + 0.12, z), (0.22, 0.12, 0.18), orange, rnd, 1, 0.05)
+        faces += _icosphere((x + 0.2, y + 0.18, z + 0.05), (0.09, 0.08, 0.08), orange, rnd, 0, 0.05)
+        faces += _icosphere((x - 0.2, y + 0.08, z + 0.12), (0.16, 0.06, 0.07), _hex("#f5efe6"), rnd, 0, 0.05)  # tail tip
+    if "orchard" in extras:
+        for k in range(6):
+            x, z = 7.5 + (k % 3) * 1.2, -9.5 + (k // 3) * 1.3
+            t = tree_mesh("oak", 5, season, island=False, detail=0)
+            faces += transform(t, 0.45, (x, g(x, z) - 0.02, z))
+    if "windmill" in extras:
+        x, z = -8.5, -10.0
+        y = g(x, z)
+        faces += _frustum(0.0, 2.4, 0.45, 0.28, _hex("#e9e2d4"), rnd, 8, x=x, z=z)
+        roof = _cone(0.0, 0.5, 0.36, _hex("#7a3b2e"), rnd, 8)
+        faces += [(*[(px + x, py + y + 2.4, pz + z) for px, py, pz in f[:3]], f[3]) for f in roof]
+        hub = (x, y + 2.15, z + 0.35)
+        for k in range(4):
+            a = k * math.pi / 2 + 0.3
+            tip = (hub[0] + math.cos(a) * 1.3, hub[1] + math.sin(a) * 1.3, hub[2])
+            faces += _limb(hub, tip, 0.12, 0.1, _hex("#cfc6b4"), rnd, 4)
+    if "birds" in extras:
+        for _ in range(7):
+            x, y, z = rnd.uniform(-5, 5), rnd.uniform(4.0, 6.0), rnd.uniform(-9, 0)
+            dark = _hex("#2f3437")
+            faces += [((x, y, z), (x - 0.28, y + 0.12, z - 0.05), (x - 0.05, y, z + 0.05), dark),
+                      ((x, y, z), (x + 0.28, y + 0.12, z - 0.05), (x + 0.05, y, z + 0.05), dark)]
+    return faces
+
+
 def valley_mesh(trees: tuple[tuple[int, str, int], ...], season: str = "summer", slots: int = 56,
-                view_angle: float = 0.0) -> list[Face]:
+                view_angle: float = 0.0, extras: tuple[str, ...] = ()) -> list[Face]:
     """A wide valley: rolling hills, a winding stream and a ring of mountains. trees = ((slot, species, stage), ...)
     with slot 0 the oldest day (far up the valley) and slots-1 today (closest to you)."""
     rnd = random.Random(f"valley-{season}")
@@ -454,14 +570,17 @@ def valley_mesh(trees: tuple[tuple[int, str, int], ...], season: str = "summer",
         x = _path_x(z) + side * (0.95 + random.Random(slot).uniform(0.0, 0.9))
         tree = tree_mesh(species, stage, season, island=False, detail=0)
         faces += transform(tree, 0.62, (x, _ground(x, z) - 0.02, z))
+    faces += _decor(extras, season, random.Random(f"decor-{season}"))
     return faces
 
 
 @lru_cache(maxsize=64)
 def forest_png(trees: tuple[tuple[int, str, int], ...], angle: int = 0, width: int = 640, height: int = 400,
-               season: str = "summer") -> bytes:
+               season: str = "summer", extras: tuple[str, ...] = ()) -> bytes:
     top, horizon = SKIES.get(season, SKIES["summer"])
-    return render(valley_mesh(trees, season, view_angle=angle), angle_deg=angle, size=width, height=height,
+    if "aurora" in extras:  # a green-violet night-ish sky for the long-streak reward
+        top, horizon = "#1d2b4f", "#4fc3a1"
+    return render(valley_mesh(trees, season, view_angle=angle, extras=extras), angle_deg=angle, size=width, height=height,
                   elevation_deg=VALLEY_CAM["elevation"], supersample=2, shadow=False, snow=season == "winter",
                   zoom=VALLEY_CAM["zoom"], center_y=VALLEY_CAM["center_y"], camera_dist=VALLEY_CAM["dist"],
                   fog=(VALLEY_CAM["dist"] + 2, VALLEY_CAM["dist"] + 22, horizon), sky=(top, horizon))

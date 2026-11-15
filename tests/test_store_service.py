@@ -202,3 +202,28 @@ def test_day_review(svc):
     log(svc, k, "oats", 80, "breakfast"); svc.store.add_water(k, 750)
     r = svc.day_review(k)
     assert r["score"] is not None and r["stage_name"] and r["totals"].water_ml == 750 and len(r["entries"]) == 1
+
+
+def test_rewards_ladder_and_next_reward():
+    from nutritrack.core.garden import History, REWARDS, next_reward, unlocked_rewards
+    h = History(streak=3, best=8, tree_days=5, points=900)
+    got = unlocked_rewards(h, 2)
+    assert "flowers" in got and "birds" in got and "stones" not in got and "deer" not in got
+    r, what = next_reward(h, 2)
+    assert r.key == "stones" and what == "2 more full trees"
+    everything = History(best=500, tree_days=500)
+    assert len(unlocked_rewards(everything, 10)) == len(REWARDS) and next_reward(everything, 10) is None
+
+
+def test_new_rewards_are_celebrated_once(tmp_path, monkeypatch):
+    from nutritrack.service import Service
+    from nutritrack.store import Store
+    st = Store(tmp_path / "r.db")
+    svc = Service(st)
+    have = {"v": ("flowers",)}
+    monkeypatch.setattr(svc, "rewards", lambda: have["v"])
+    assert not any("valley" in m for m in svc.check_growth("2000-01-01", 0))  # first check just records
+    have["v"] = ("flowers", "stones")
+    msgs = svc.check_growth("2000-01-01", 0)
+    assert any("stepping stones" in m for m in msgs)
+    assert not any("valley" in m for m in svc.check_growth("2000-01-01", 0))

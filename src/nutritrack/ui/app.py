@@ -239,6 +239,42 @@ class App:
                 return candidate
         return "snacks"
 
+    def refresh(self, *names: str) -> None:
+        """Rebuild only the named Today cards after a small change (a water tap, a dose tick) instead of the whole
+        screen: less work on the server and far less sent to the phone. Falls back to a full render elsewhere."""
+        from . import today
+        if self.closed or self.view != "today" or not self.store.profile() or self.ui.sub_open("today"):
+            return self.render()
+        motion.entering = False
+        if self.date == today_key():
+            self._check_growth()
+        t, tot = self.svc.targets_for(self.date), self.svc.totals(self.date)
+        fresh = {n: today.card(self, n, t, tot) for n in names}
+
+        def swap(controls: list) -> int:
+            done = 0
+            for i, c in enumerate(controls):
+                if getattr(c, "data", None) in fresh and fresh[c.data] is not None:
+                    controls[i] = fresh[c.data]
+                    done += 1
+                elif isinstance(c, ft.ResponsiveRow):
+                    for box in c.controls:
+                        inner = getattr(box, "content", None)
+                        if getattr(inner, "data", None) in fresh and fresh[inner.data] is not None:
+                            box.content = fresh[inner.data]
+                            done += 1
+            return done
+
+        try:
+            if swap(self.body.controls) < len([n for n in names if fresh[n] is not None]):
+                return self.render()  # a card appeared or disappeared: rebuild everything
+            self.page.update()
+            self.page.run_task(motion.flush)
+            self.notifier.request_sync()
+        except Exception:
+            diagnostics.log.exception("partial refresh failed; doing a full render")
+            self.render()
+
     def _sync_views(self, sub: bool) -> None:
         views = self.page.views
         if sub and self.sub_view not in views:

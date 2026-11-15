@@ -43,7 +43,68 @@ SPECIES: dict[str, Species] = {
     "maple": Species("Autumn maple", 4, ("#e0823a", "#c9612a"), "#6b4430", "round"),
     "birch": Species("Birch", 5, ("#9cc95a", "#7fb143"), "#e9e4d8", "oval"),
     "golden": Species("Golden tree", 7, ("#f2c94c", "#e0a92e"), "#7a5a2a", "round", "#fff6c9"),
+    "jacaranda": Species("Jacaranda", 8, ("#9b7fe0", "#7f63c9"), "#5e4636", "round", "#e3d6ff"),
+    "ginkgo": Species("Ginkgo", 10, ("#e8d35a", "#cdb73c"), "#6e5a3a", "oval"),
 }
+
+
+# ---------- rewards: things that appear in your forest valley as you keep going ----------
+@dataclass(frozen=True)
+class Reward:
+    key: str
+    name: str
+    blurb: str
+    kind: str        # tree_days | best_streak | level
+    need: int
+    icon: str        # Material icon name, for the UI
+
+
+REWARDS: list[Reward] = [
+    Reward("flowers", "Wildflowers", "Meadow flowers along the stream", "tree_days", 3, "LOCAL_FLORIST"),
+    Reward("stones", "Stepping stones", "A way across the stream", "tree_days", 7, "WAVES"),
+    Reward("birds", "Songbirds", "Birds circling over the valley", "best_streak", 7, "FLUTTER_DASH"),
+    Reward("bench", "Bench", "A place to sit by the water", "level", 3, "CHAIR"),
+    Reward("deer", "Deer", "A deer grazing near your trees", "best_streak", 14, "PETS"),
+    Reward("bridge", "Footbridge", "A wooden bridge over the stream", "tree_days", 21, "ROUTE"),
+    Reward("lanterns", "Lanterns", "Lanterns along the path", "level", 5, "LIGHT"),
+    Reward("fox", "Fox", "A fox curled up on the bank", "best_streak", 30, "PETS"),
+    Reward("cabin", "Cabin", "A cabin at the edge of the forest", "level", 6, "CABIN"),
+    Reward("orchard", "Orchard", "Fruit trees on the far slope", "tree_days", 60, "PARK"),
+    Reward("windmill", "Windmill", "A windmill on the hill", "level", 9, "WIND_POWER"),
+    Reward("aurora", "Northern lights", "Ribbons of light over the mountains", "best_streak", 100, "AUTO_AWESOME"),
+]
+
+
+def reward_progress(r: Reward, h: "History", level: int) -> int:
+    return {"tree_days": h.tree_days, "best_streak": h.best, "level": level}[r.kind]
+
+
+def rewards_status(h: "History", level: int) -> list[tuple[Reward, bool, int]]:
+    """Every reward with (unlocked?, how far there is still to go)."""
+    out = []
+    for r in REWARDS:
+        have = reward_progress(r, h, level)
+        out.append((r, have >= r.need, max(0, r.need - have)))
+    return out
+
+
+def unlocked_rewards(h: "History", level: int) -> tuple[str, ...]:
+    return tuple(r.key for r, ok, _ in rewards_status(h, level) if ok)
+
+
+def next_reward(h: "History", level: int) -> tuple[Reward, str] | None:
+    """The closest locked reward and what it takes, in plain words."""
+    locked = [(left, r) for r, ok, left in rewards_status(h, level) if not ok]
+    if not locked:
+        return None
+    left, r = min(locked, key=lambda x: (x[0] / max(1, x[1].need), x[1].need))
+    return r, needs_text(r, left)
+
+
+def needs_text(r: Reward, left: int) -> str:
+    return {"tree_days": f"{left} more full tree{'s' if left != 1 else ''}",
+            "best_streak": f"a {r.need}-day streak ({left} more day{'s' if left != 1 else ''})",
+            "level": f"level {r.need}"}[r.kind]
 
 
 @dataclass

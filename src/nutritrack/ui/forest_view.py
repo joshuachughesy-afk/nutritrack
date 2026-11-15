@@ -43,6 +43,7 @@ class ForestView:
     def __init__(self, app: "App"):
         self.app = app
         self.trees = forest_trees(app)
+        self.extras = app.svc.rewards()
         self.season = app.svc.season()
         self.angle = 0
         self.flying = False
@@ -65,7 +66,7 @@ class ForestView:
 
     def _frame(self, angle: int, small: bool = False) -> bytes:
         w, h = (480, 300) if small else (W, H)
-        return render3d.forest_png(self.trees, angle % 360, w, h, self.season)
+        return render3d.forest_png(self.trees, angle % 360, w, h, self.season, self.extras)
 
     def _drag(self, e) -> None:
         if self.flying:
