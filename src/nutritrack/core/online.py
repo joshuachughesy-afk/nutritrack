@@ -14,9 +14,11 @@ from typing import Callable
 from .foods import Food, Serving
 from .nutrition import NUTRIENT_KEYS
 
-USER_AGENT = "NutriTrack/2.0 (open-source nutrition tracker)"  # Open Food Facts asks apps to identify themselves
+USER_AGENT = "Sapling/2.3 (open-source nutrition tracker)"  # Open Food Facts asks apps to identify themselves
 OFF_FIELDS = "code,product_name,brands,serving_size,serving_quantity,nutriments"
 TIMEOUT = 12
+# Sapling's USDA relay (relay/worker.js). Set to "" to always call USDA directly.
+DEFAULT_RELAY = ""
 
 Fetch = Callable[[str, dict], dict]
 
@@ -44,7 +46,9 @@ def friendly_error(err: dict) -> str:
     if code == "API_KEY_INVALID":
         return "USDA rejected the API key. Check the key under Profile → Help & feedback → Advanced."
     if code == "OVER_RATE_LIMIT":
-        return "USDA's shared demo key is busy. Add your own free key under Profile → Help & feedback → Advanced."
+        return "Lab-verified search is busy right now. Try again in a minute."
+    if code in ("NO_KEY", "UPSTREAM"):
+        return "Lab-verified search is unavailable right now. Brand results still work."
     return err.get("message") or code or "Request failed"
 
 
@@ -164,11 +168,26 @@ def parse_usda_food(f: dict) -> Food | None:
                 per100=per100, source="USDA")
 
 
-def search_usda(query: str, api_key: str | None = None, fetch: Fetch | None = None, page_size: int = 20) -> list[Food]:
+USDA_BASE = "https://api.nal.usda.gov"
+
+
+def _usda_target(api_key: str | None, relay: str | None) -> tuple[str, dict]:
+    """Where to send a USDA request: your own key goes straight to USDA; otherwise the Sapling relay (which adds its
+    key on the server); with neither, USDA's shared, rate-limited DEMO_KEY."""
+    if api_key:
+        return USDA_BASE, {"X-Api-Key": api_key}
+    if relay:
+        return relay.rstrip("/"), {}
+    return USDA_BASE, {"X-Api-Key": "DEMO_KEY"}
+
+
+def search_usda(query: str, api_key: str | None = None, fetch: Fetch | None = None, page_size: int = 20,
+                relay: str | None = None) -> list[Food]:
     """Whole foods from the Foundation and SR Legacy datasets (lab-measured, full micronutrients)."""
-    url = "https://api.nal.usda.gov/fdc/v1/foods/search?" + urllib.parse.urlencode(
+    base, headers = _usda_target(api_key, relay)
+    url = base + "/fdc/v1/foods/search?" + urllib.parse.urlencode(
         {"query": query, "dataType": "Foundation,SR Legacy", "pageSize": page_size})
-    data = (fetch or (lambda u, h: http_json(u, h)))(url, {"X-Api-Key": api_key or "DEMO_KEY"})
+    data = (fetch or (lambda u, h: http_json(u, h)))(url, headers)
     if "error" in data:
         raise RuntimeError(friendly_error(data["error"]))
     return [x for x in (parse_usda_food(f) for f in data.get("foods", [])) if x]
@@ -204,9 +223,11 @@ def parse_usda_detail(d: dict) -> Food | None:
     return food
 
 
-def usda_food(fdc_id: int | str, api_key: str | None = None, fetch: Fetch | None = None) -> Food | None:
-    url = f"https://api.nal.usda.gov/fdc/v1/food/{int(fdc_id)}"
-    data = (fetch or (lambda u, h: http_json(u, h)))(url, {"X-Api-Key": api_key or "DEMO_KEY"})
+def usda_food(fdc_id: int | str, api_key: str | None = None, fetch: Fetch | None = None,
+              relay: str | None = None) -> Food | None:
+    base, headers = _usda_target(api_key, relay)
+    url = f"{base}/fdc/v1/food/{int(fdc_id)}"
+    data = (fetch or (lambda u, h: http_json(u, h)))(url, headers)
     if "error" in data:
         raise RuntimeError(friendly_error(data["error"]))
     return parse_usda_detail(data)

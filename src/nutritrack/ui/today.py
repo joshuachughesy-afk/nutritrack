@@ -508,5 +508,5 @@ def _weigh_in(app: "App") -> ft.Control:
 
     field.on_submit = save
     return th.card(th.heading("Morning weigh-in", "optional", icon=ft.Icons.MONITOR_WEIGHT_OUTLINED),
-                   th.muted("A few weigh-ins a week let NutriTrack learn your real daily burn.", th.T.CAPTION),
+                   th.muted("A few weigh-ins a week let Sapling learn your real daily burn.", th.T.CAPTION),
                    ft.Row([field, ft.FilledTonalButton("Log", on_click=save)], spacing=8), spacing=10)

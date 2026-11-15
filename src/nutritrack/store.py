@@ -309,7 +309,7 @@ class Store:
     def import_json(self, text: str) -> None:
         data = json.loads(text)
         if not isinstance(data, dict) or data.get("version") != 2:
-            raise ValueError("Not a NutriTrack (Python) backup")
+            raise ValueError("Not a Sapling backup")
         with self.lock:
             for table in ("settings", "custom_foods", "entries", "water", "supplements", "doses", "days", "recipes", "plans"):
                 self.conn.execute(f"delete from {table}")

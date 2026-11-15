@@ -1,7 +1,7 @@
 [project]
-name = "nutritrack"
+name = "sapling"
 version = "2.2.0"
-description = "Calories, macros, micronutrients, water and supplements, with reminders and a garden that grows with your consistency."
+description = "Sapling: calories, macros, micronutrients, water and supplements, with reminders and a garden that grows with your consistency."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -21,10 +21,10 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.flet]
-org = "app.nutritrack"
-product = "NutriTrack"
-company = "NutriTrack"
-copyright = "NutriTrack"
+org = "app.sapling"
+product = "Sapling"
+company = "Sapling"
+copyright = "Sapling"
 
 [tool.flet.app]
 path = "src"
@@ -36,7 +36,7 @@ path = "src"
 "android.permission.INTERNET" = true
 
 [tool.flet.ios.info]
-NSCameraUsageDescription = "NutriTrack uses the camera to scan food barcodes."
+NSCameraUsageDescription = "Sapling uses the camera to scan food barcodes and photograph meals to log later."
 
 [tool.ruff]
 line-length = 130

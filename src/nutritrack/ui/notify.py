@@ -118,7 +118,7 @@ class Notifier:
         shown = False
         if self.service is not None and await self.request_permission():
             try:
-                await self.service.show(1, title="🌱 NutriTrack", body="Reminders are working. You'll get check-ins like this.")
+                await self.service.show(1, title="🌱 Sapling", body="Reminders are working. You'll get check-ins like this.")
                 shown = True
             except Exception:
                 shown = False

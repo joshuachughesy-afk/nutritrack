@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import flet as ft
 
+from .. import APP_NAME
 from ..core.nutrition import GOALS, Profile, day_targets, in_to_cm, lb_to_kg
 from ..core.training import LOADS, TRAINING
 from . import components as cx
@@ -106,6 +107,8 @@ def _welcome(app: "App", a: dict) -> list[ft.Control]:
     return [
         ft.Row([ft.Container(tree.control, gradient=sky, alignment=ft.Alignment.CENTER, expand=True,
                              border_radius=th.R.LG, padding=ft.Padding.only(top=12, bottom=4))]),
+        ft.Row([ft.Icon(ft.Icons.SPA, color=th.ACCENT, size=22),
+                ft.Text(APP_NAME, size=th.T.HEADLINE, font_family=th.FONT_BOLD, color=th.ACCENT)], spacing=6),
         ft.Text("Grow a forest by fuelling well.", size=th.T.DISPLAY, font_family=th.FONT_BOLD),
         th.muted("Calories, macros and every nutrient, tuned to how you train. Takes about a minute to set up.", th.T.BODY),
         *[ft.Row([ft.Icon(ic, color=th.ACCENT, size=22),

@@ -307,8 +307,8 @@ def _reminders(app: "App", p: Profile) -> list[ft.Control]:
             check_row.controls.append(ft.TextButton("Add a check-in", icon=ft.Icons.ADD, on_click=add))
 
     draw_checks()
-    how = ("Your phone delivers these even when NutriTrack is closed." if notifier.can_schedule
-           else "On this device reminders appear while NutriTrack is open. On the phone app they arrive even when it's closed.")
+    how = ("Your phone delivers these even when Sapling is closed." if notifier.can_schedule
+           else "On this device reminders appear while Sapling is open. On the phone app they arrive even when it's closed.")
 
     async def save(_):
         app.store.set("schedule", {"wake": wake.value, "sleep": sleep.value, **{k: f.value for k, f in meals.items()}})
@@ -388,7 +388,7 @@ def _data(app: "App", p: Profile) -> list[ft.Control]:
     async def export(_):
         from datetime import date
         try:
-            path = await ft.FilePicker().save_file(dialog_title="Save NutriTrack backup", file_name=f"nutritrack-{date.today()}.json",
+            path = await ft.FilePicker().save_file(dialog_title="Save Sapling backup", file_name=f"sapling-{date.today()}.json",
                                                    allowed_extensions=["json"], src_bytes=app.store.export_json().encode())
             desktop = str(getattr(app.page.platform, "value", "")).lower() in ("windows", "macos", "linux")
             if path and desktop and not app.page.web:  # phones and web save src_bytes themselves
@@ -403,7 +403,7 @@ def _data(app: "App", p: Profile) -> list[ft.Control]:
 
     async def import_(_):
         try:
-            files = await ft.FilePicker().pick_files(dialog_title="Choose a NutriTrack backup", allowed_extensions=["json"],
+            files = await ft.FilePicker().pick_files(dialog_title="Choose a Sapling backup", allowed_extensions=["json"],
                                                      with_data=True)
             if not files:
                 return
@@ -417,7 +417,7 @@ def _data(app: "App", p: Profile) -> list[ft.Control]:
             try:
                 app.store.import_json(data)
             except Exception as ex:
-                app.toast(f"That doesn't look like a NutriTrack backup ({ex})")
+                app.toast(f"That doesn't look like a Sapling backup ({ex})")
                 return
             app.ui.profile_page = None
             app.go("today")
@@ -448,12 +448,12 @@ def _data(app: "App", p: Profile) -> list[ft.Control]:
 def _help(app: "App", p: Profile) -> list[ft.Control]:
     import os
 
-    from .. import __version__, diagnostics
+    from .. import APP_NAME, TAGLINE, __version__, diagnostics
 
     async def export_log(_):
         try:
             data = diagnostics.report(app.store, app.page, lines=400).encode()
-            await ft.FilePicker().save_file(dialog_title="Save diagnostics", file_name="nutritrack-diagnostics.md", src_bytes=data)
+            await ft.FilePicker().save_file(dialog_title="Save diagnostics", file_name="sapling-diagnostics.md", src_bytes=data)
         except Exception as ex:
             diagnostics.log.exception("export log failed")
             app.toast(f"Couldn't save: {ex}")
@@ -492,5 +492,5 @@ def _help(app: "App", p: Profile) -> list[ft.Control]:
         th.card(ft.ExpansionTile(title=ft.Text("Advanced", size=th.T.BODY - 1, font_family=th.FONT_SEMI), tile_padding=0,
                                  controls=dev, controls_padding=ft.Padding.only(bottom=8)),
                 padding=ft.Padding.symmetric(horizontal=16, vertical=4)),
-        th.muted(f"NutriTrack {__version__}", th.T.CAPTION, text_align=ft.TextAlign.CENTER),
+        th.muted(f"{APP_NAME} {__version__} · {TAGLINE}", th.T.CAPTION, text_align=ft.TextAlign.CENTER),
     ]

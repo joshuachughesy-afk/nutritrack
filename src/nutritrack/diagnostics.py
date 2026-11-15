@@ -58,7 +58,7 @@ def environment(page=None) -> dict[str, str]:
     import flet
 
     info = {
-        "NutriTrack": __version__,
+        "Sapling": __version__,
         "Flet": getattr(flet, "__version__", None) or getattr(getattr(flet, "version", None), "version", "?"),
         "Python": sys.version.split()[0],
         "OS": f"{platform.system()} {platform.release()}",

@@ -138,9 +138,14 @@ class Service:
     def usda_key(self) -> str | None:
         return self.store.get("usda_api_key") or None
 
+    def usda_relay(self) -> str | None:
+        """The Sapling relay that adds a USDA key server-side ("" in settings turns it off)."""
+        v = self.store.get("usda_relay")
+        return online.DEFAULT_RELAY if v is None else (v or None)
+
     def search_online(self, query: str, source: str) -> list[Food]:
         if source == "usda":
-            return online.search_usda(query, self.usda_key())
+            return online.search_usda(query, self.usda_key(), relay=self.usda_relay())
         return online.search_off(query)
 
     def food_for_entry(self, entry: dict) -> Food | None:
@@ -190,7 +195,7 @@ class Service:
         if f.source == "OFF":
             return online.lookup_barcode(f.id.removeprefix("off-")) or f
         if f.source == "USDA":
-            return online.usda_food(f.id.removeprefix("usda-"), self.usda_key()) or f
+            return online.usda_food(f.id.removeprefix("usda-"), self.usda_key(), relay=self.usda_relay()) or f
         return f
 
     def remember_food(self, f: Food) -> None:

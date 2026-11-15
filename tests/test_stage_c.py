@@ -75,7 +75,7 @@ def test_usda_parse_and_search():
     assert ripe.per100["kcal"] == pytest.approx(97.4)  # Atwater energy when 1008 is missing
     with pytest.raises(RuntimeError, match="rejected the API key"):
         online.search_usda("x", fetch=lambda u, h: {"error": {"code": "API_KEY_INVALID", "message": "bad key"}})
-    with pytest.raises(RuntimeError, match="own free key"):
+    with pytest.raises(RuntimeError, match="busy"):
         online.search_usda("x", fetch=lambda u, h: {"error": {"code": "OVER_RATE_LIMIT"}})
 
 
@@ -261,3 +261,22 @@ def test_update_entry_and_food_for_entry(svc):
     f = svc.food_for_entry(gone)
     assert f.per100["kcal"] == 200 and f.servings[0].g == 250
     assert svc.food_for_entry({**e, "food_id": None, "grams": 0}) is None  # quick adds edit as quick adds
+
+
+def test_usda_goes_through_relay_without_a_personal_key():
+    from nutritrack.core import online
+    seen = []
+
+    def fetch(url, headers):
+        seen.append((url, headers))
+        return {"foods": []}
+
+    online.search_usda("oats", None, fetch, relay="https://relay.example.dev/")
+    assert seen[-1] == ("https://relay.example.dev/fdc/v1/foods/search?query=oats&dataType=Foundation%2CSR+Legacy&pageSize=20", {})
+    online.search_usda("oats", "MYKEY", fetch, relay="https://relay.example.dev")
+    assert seen[-1][0].startswith("https://api.nal.usda.gov/") and seen[-1][1] == {"X-Api-Key": "MYKEY"}
+    online.search_usda("oats", None, fetch)
+    assert seen[-1][1] == {"X-Api-Key": "DEMO_KEY"}
+    import pytest
+    with pytest.raises(RuntimeError, match="busy"):
+        online.usda_food(1, None, lambda u, h: {"error": {"code": "OVER_RATE_LIMIT"}}, relay="https://r")

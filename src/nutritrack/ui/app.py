@@ -37,8 +37,14 @@ class App:
         self.ui = UIState()
         self._last_screen: tuple[str, str] | None = None
         self.body = ft.Column(spacing=16, scroll=ft.ScrollMode.AUTO, expand=True)
+        # Sub-pages (editors, settings pages) are pushed as a second view, so the phone's own back gesture works:
+        # Android's back button and iOS swipe-back pop it, and on_view_pop closes the sub-page.
+        self.sub_body = ft.Column(spacing=16, scroll=ft.ScrollMode.AUTO, expand=True)
+        self.sub_view = ft.View(route="/sub", padding=0, bgcolor=ft.Colors.SURFACE, controls=[
+            ft.SafeArea(content=ft.Container(content=self.sub_body, padding=ft.Padding.only(left=16, right=16, top=10),
+                                             expand=True), expand=True)])
 
-        page.title = "NutriTrack"
+        page.title = "Sapling"
         page.fonts = th.FONTS
         page.theme = th.theme(dark=False)
         page.dark_theme = th.theme(dark=True)
@@ -52,6 +58,7 @@ class App:
         page.on_disconnect = self._on_close
         page.on_close = self._on_close
         page.on_keyboard_event = self._on_key
+        page.on_view_pop = self._on_view_pop
         page.navigation_bar = ft.NavigationBar(
             destinations=[ft.NavigationBarDestination(icon=i, selected_icon=si, label=l) for _, l, i, si in NAV],
             on_change=self._on_nav, animation_duration=400,
@@ -141,13 +148,16 @@ class App:
             diagnostics.log.exception("failed to build %s", self.view)
             controls = [self._error_card(traceback.format_exc())]
         fab = self.view == "today" and not onboard
+        sub = not onboard and self.ui.sub_open(self.view)
+        target = self.sub_body if sub else self.body
         # leave room under the last card so the quick-log button never covers it
-        self.body.controls = motion.entrance(controls + [ft.Container(height=96 if fab else 16)])
+        target.controls = motion.entrance(controls + [ft.Container(height=96 if fab else 16)])
         self.page.floating_action_button = self._quick_log_button() if fab else None
+        self._sync_views(sub)
         self.page.update()
         self.page.run_task(motion.flush)
         if new_screen:  # every screen and sub-page opens at the top
-            self.page.run_task(self.body.scroll_to, offset=0)
+            self.page.run_task(target.scroll_to, offset=0)
         if hasattr(self, "notifier"):
             self.notifier.request_sync()
 
@@ -228,6 +238,20 @@ class App:
             if candidate not in logged:
                 return candidate
         return "snacks"
+
+    def _sync_views(self, sub: bool) -> None:
+        views = self.page.views
+        if sub and self.sub_view not in views:
+            views.append(self.sub_view)
+        elif not sub:
+            while len(views) > 1:
+                views.pop()
+
+    def _on_view_pop(self, e=None) -> None:
+        """The phone's back gesture popped the sub-page view."""
+        if not self.back():  # already closed: just tidy the view stack
+            self._sync_views(False)
+            self.page.update()
 
     def back(self) -> bool:
         """Close the open sub-page (editor, settings page). Returns False if there was nothing to close."""

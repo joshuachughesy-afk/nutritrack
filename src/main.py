@@ -1,4 +1,4 @@
-"""NutriTrack entry point.
+"""Sapling entry point.
 
 Run:   flet run src/main.py            (desktop window)
        flet run --web src/main.py      (browser)

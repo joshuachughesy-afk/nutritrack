@@ -145,7 +145,7 @@ def plan_notifications(now: datetime, settings: dict, sched: dict, supps: list[S
             plan.append(Planned(stable_id("check", "today", str(i)), at(today, time), ev.title, ev.body,
                                 payload="today", kind="checkin"))
         plan.append(Planned(stable_id("check", "tomorrow", str(i)), at(today + timedelta(days=1), time),
-                            "📊 Check-in", "Open NutriTrack to see if you're on pace for today.", payload="today",
+                            "📊 Check-in", "Open Sapling to see if you're on pace for today.", payload="today",
                             kind="checkin"))
 
     # Water: only slots today where, if you drink nothing more, you'd be behind pace.
