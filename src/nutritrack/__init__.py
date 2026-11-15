@@ -5,4 +5,4 @@ The Python package keeps its original name (`nutritrack`) so existing data folde
 
 APP_NAME = "Sapling"
 TAGLINE = "Fuel your training. Cover every nutrient. Grow a forest."
-__version__ = "2.2.0"
+__version__ = "2.3.0"

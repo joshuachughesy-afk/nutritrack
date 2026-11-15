@@ -23,3 +23,14 @@ jobs:
         run: ruff check src tests
       - name: Tests
         run: pytest -q
+
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Relay unit tests
+        working-directory: relay
+        run: node --test

@@ -78,7 +78,7 @@ def adaptive_tdee(intake: dict[str, float], weights: list[tuple[str, float]], fo
             need.append(f"{MIN_WEIGH_INS - len(in_window)} more weigh-ins")
         if len(logged) < MIN_INTAKE_DAYS:
             need.append(f"{MIN_INTAKE_DAYS - len(logged)} more fully logged days")
-        res.reason = "Still learning: needs " + ", ".join(need) + "."
+        res.reason = "Still learning: it uses the last 4 weeks and needs " + ", ".join(need) + " in that time."
         return res
     slope = slope_kg_per_day(in_window)
     avg = sum(logged) / len(logged)

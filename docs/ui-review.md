@@ -113,10 +113,36 @@ Where all three agreed, it went to the top of the list.
   * **Erase** is a separate red action that needs you to type ERASE.
 * File paths, logs, versions, keyboard shortcuts and the USDA key live under **Help & feedback → Advanced**.
 
-## Left for later, with reasons
+## Follow-up (v2.3): the "left for later" list, done
 
-* **Rename the app** (suggested: Grove, Canopy). This is the owner's call, and it needs a trademark and App Store check.
-* **Ship a USDA key or a small relay** before any public release. A consumer shouldn't have to get an API key. The field stays under Advanced for now.
-* **OS back gesture** (Android back, iOS swipe-back). This needs a `page.views` router. The in-app back arrow, Esc and Alt+← work today.
-* **Per-card updates instead of full re-renders.** This is a performance refactor and has no visible change. The current renders are cached and cheap (see the README).
-* **Weekly recap and share card, a longer unlock ladder** (decorations, wildlife, seasonal seeds), **more distinct growth stages, and typed or photo logging.** These are new features rather than UI fixes.
+* **Renamed to Sapling**, with the tagline "Fuel your training. Cover every nutrient. Grow a forest." The Python
+  package is still `nutritrack`, so existing data folders and imports keep working.
+* **USDA relay** (`relay/`): a Cloudflare Worker that adds the key on the server, caches for a week and rate-limits
+  each visitor. The app uses it when there's no personal key. To finish it, deploy it from the Cloudflare dashboard
+  (see `relay/README.md`) and set `DEFAULT_RELAY` in `core/online.py` to its address.
+* **Native back gesture:** sub-pages are pushed as a second view, so Android back and iOS swipe-back close them.
+* **Per-card updates:** water and supplement taps rebuild only the affected Today cards, so the scroll position is kept.
+* **Distinct growth stages, a 12-step rewards ladder** drawn into the valley, and two new species.
+* **Weekly recap:** shown Sunday evening and Monday, opened by a Sunday 18:00 notification, with a shareable image.
+* **Describe it** (typed logging, parsed on the device) and **Photo for later**.
+
+## Bug hunt (v2.3)
+
+An automated crawler pressed every button and changed every input on every screen, sub-page and sheet. A fuzz run
+simulated two months of random use, then built every screen for every day. A browser pass watched the console.
+Fixed:
+
+* **Bedtime after midnight:** pacing broke (the water curve ran backwards) and pacing switched off after midnight.
+* **Left open past midnight:** Today stayed on yesterday.
+* **Water Undo** applied to whichever day was on screen, not the day the water was added.
+* **Adding a third check-in** silently vanished as a duplicate time.
+* **Removing a dose time or check-in twice quickly** crashed.
+* **Trends averages and supplement adherence** counted today's unfinished day.
+* **Night-time wording** said "Good evening" and "Just waking up" at 2 am.
+* **The weigh-in card** couldn't be skipped.
+* **Today in the calendar** wasn't highlighted before you'd logged anything.
+* **"Try: salmon, salmon"** appeared in the nutrient suggestions.
+* **The adaptive-burn message** didn't say it only counts the last 4 weeks.
+
+Known and left alone: in the web preview, `datetime.now()` is the server's clock, not the viewer's. The phone app
+runs locally, so it isn't affected.

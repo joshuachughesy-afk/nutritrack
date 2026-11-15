@@ -148,7 +148,7 @@ def _calorie_card(app: "App", s) -> ft.Control:
         )]))
     chart = fch.BarChart(groups=groups, max_y=round(top), height=180, interactive=True,
                          horizontal_grid_lines=fch.ChartGridLines(color=GRID, width=1),
-                         left_axis=fch.ChartAxis(label_size=44, show_max=False),
+                         left_axis=fch.ChartAxis(label_size=44, show_max=False, show_min=False),
                          bottom_axis=_date_axis(start, n), group_alignment=ft.MainAxisAlignment.SPACE_AROUND)
     avg_diff = s.avg_kcal - s.avg_target_kcal
     if not s.logged_days:

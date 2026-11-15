@@ -95,7 +95,7 @@ def _garden(app: "App") -> list[ft.Control]:
             content = ft.Stack([ft.Container(num, left=3, top=1),
                                 *([ft.Container(ft.Icon(ft.Icons.SHIELD, size=14, color=th.SHIELD), alignment=ft.Alignment.CENTER,
                                                 left=0, right=0, top=0, bottom=0)] if mark == "shielded" else [])])
-            bg, border = None, ft.Border.all(1, ft.Colors.OUTLINE_VARIANT)
+            bg, border = None, ft.Border.all(2 if d == today else 1, th.ACCENT if d == today else ft.Colors.OUTLINE_VARIANT)
         tip = (f"{pretty_date(k)}: {sc} points" if sc is not None else
                f"{pretty_date(k)}: covered by a shield" if mark == "shielded" else f"{pretty_date(k)}: nothing logged")
         cells.append(ft.Container(content, col=1, aspect_ratio=1, border_radius=8, bgcolor=bg, border=border, padding=1,

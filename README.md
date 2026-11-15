@@ -1,4 +1,8 @@
-# 🌱 NutriTrack (Python)
+# 🌱 Sapling
+
+*Fuel your training. Cover every nutrient. Grow a forest.*
+
+(Formerly NutriTrack. The Python package is still `nutritrack`.)
 
 A local-first calorie, macro and micronutrient tracker with water, supplements, smart reminders and a garden that
 grows with your consistency, written entirely in **Python** with [Flet](https://flet.dev). One codebase runs as a
@@ -78,13 +82,18 @@ Measured on 5 weeks of sample data, for the render that follows a write:
 * **Search just works:** online results (✓ Verified USDA or Brand label) appear as you type.
 * **Quick log:** the button on Today opens Add food for the next meal you haven't logged.
 * **Plain words:** the science (g/kg ranges, BMR, citations) sits behind ⓘ buttons and in Profile → Training.
+* **Describe it:** type "2 eggs, 2 slices of toast and half an avocado" in Add food; it's matched on the device and
+  previewed before anything is logged.
+* **Photo for later:** snap a meal when you're busy; it waits on Today until you log it.
+* **Weekly recap:** Sunday evening, a look back at the week's trees with a shareable image.
+* **Back gesture:** Android back and iOS swipe-back close editors and settings pages.
 * **Desktop shortcuts:** Alt+← / Alt+→ change day, Alt+T today, Alt+N log food, Alt+1–5 switch tabs, Esc goes back.
 
 ## Foods, recipes and saved meals
 
 * **My foods:** a searchable list of foods you created or picked from online search; *New food* opens the label editor.
 * **Recipes:** build a dish from ingredients (any food, including online and custom ones), set how many servings it
-  makes, and NutriTrack works out the nutrition per serving. Recipes show up in Add food like any other food.
+  makes, and Sapling works out the nutrition per serving. Recipes show up in Add food like any other food.
 * **Saved meals:** tap *Save meal* under a meal on Today, or save a whole day from the Garden calendar. Log it again
   from Foods → Saved meals (into the day you're viewing) or straight from the *Saved meals* row in Add food; a saved
   day logs every meal at once.
@@ -94,10 +103,18 @@ Measured on 5 weeks of sample data, for the render that follows a write:
 Tap any food on Today to change its amount, unit or meal (or delete it). The editor starts from what you logged, and
 recognises clean serving multiples ("172 g" opens as "1 breast"). Quick adds open as an editable quick add.
 
+## Your valley
+
+Every full tree (65+ points), longer best streaks and higher levels unlock things in the forest valley: wildflowers,
+stepping stones, songbirds, a bench, deer, a footbridge, lanterns, a fox, a cabin, an orchard, a windmill and the
+northern lights. Progress → Garden shows what's next and how far away it is. Jacaranda (level 8) and Ginkgo (level
+10) join the seeds.
+
 ## Online food data
 
 * **Open Food Facts**: free, no key. Brand search and barcodes. Crowd-sourced, so check odd values against the label.
-* **USDA FoodData Central**: lab-measured whole foods with full micronutrients. The shared `DEMO_KEY` is rate-limited,
+* **USDA FoodData Central**: lab-measured whole foods with full micronutrients, through the Sapling relay
+  (`relay/`, a Cloudflare Worker that adds the key on the server) or your own key. The shared `DEMO_KEY` is rate-limited,
   so get a free key at <https://api.data.gov/signup/> and paste it in **Profile → Help & feedback → Advanced**.
 
 Barcode photos are decoded on the device with `zxing-cpp`. If a phone build doesn't include it, the scanner falls back
