@@ -146,7 +146,10 @@ def time_field(page_getter: Callable[[], ft.Page], value: str, label: str = "Tim
     field = ft.TextField(label=label, value=value, read_only=True, dense=True, border_radius=12, width=width,
                          suffix_icon=ft.Icons.SCHEDULE)
 
+    state = {"open": False}
+
     def picked(e) -> None:
+        state["open"] = False
         t = e.control.value
         if t is None:
             return
@@ -155,16 +158,23 @@ def time_field(page_getter: Callable[[], ft.Page], value: str, label: str = "Tim
         if on_change:
             on_change(field.value)
 
+    def closed(_) -> None:
+        state["open"] = False
+
     def open_picker(_) -> None:
+        # Open on tap only: when the picker closes, focus returns to the field, so opening on focus as well
+        # used to stack a second picker behind the first.
+        if state["open"]:
+            return
         try:
             h, m = (int(x) for x in (field.value or "08:00").split(":"))
         except ValueError:
             h, m = 8, 0
-        page_getter().show_dialog(ft.TimePicker(value=dtime(h, m), on_change=picked, help_text=label,
+        state["open"] = True
+        page_getter().show_dialog(ft.TimePicker(value=dtime(h, m), on_change=picked, on_dismiss=closed, help_text=label,
                                                 hour_format=ft.TimePickerHourFormat.H24))
 
     field.on_click = open_picker
-    field.on_focus = open_picker
     return field
 
 

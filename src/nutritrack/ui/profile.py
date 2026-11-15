@@ -184,6 +184,9 @@ def _training(app: "App", p: Profile) -> list[ft.Control]:
 
     def save(_):
         prof = app.store.profile() or Profile()
+        from .onboarding import LOAD_TO_ACTIVITY
+        if prof.activity == LOAD_TO_ACTIVITY.get(prof.training_load):  # activity was set from training hours: follow them
+            prof.activity = LOAD_TO_ACTIVITY.get(state["load"], prof.activity)
         prof.training_type, prof.training_load = state["type"], state["load"]
         prof.training_days = tuple(sorted(state["days"]))
         prof.carb_cycling = bool(cycling[0].value)

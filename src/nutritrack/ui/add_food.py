@@ -194,7 +194,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
             *([ft.Row([ft.Image(src=base64.b64decode(photo["thumb"]), width=64, height=64, fit=ft.BoxFit.COVER,
                                 border_radius=10),
                        th.muted("Your photo from earlier. Log what's in it and it'll be cleared.", th.T.CAPTION,
-                                expand=True)], spacing=10)] if photo else []),
+                                expand=True)], spacing=10)] if photo and photo.get("thumb") else []),
             results, online_head, status, online_results, more,
         ]
         app.page.update()

@@ -66,3 +66,11 @@ def test_today_and_add_food_build_with_a_photo(tmp_path):
     assert today.build(app)
     add_food.open_sheet(app, "dinner", photo=ph)
     assert app.page.dialogs
+
+
+def test_unreadable_photo_still_saves_a_reminder(tmp_path):
+    from nutritrack.service import Service
+    from nutritrack.store import Store
+    svc = Service(Store(tmp_path / "h.db"))
+    ph = svc.add_photo("2026-11-15", "lunch", b"\x00\x00\x00 ftypheic not really an image")
+    assert ph["thumb"] == "" and svc.photos("2026-11-15", "lunch")

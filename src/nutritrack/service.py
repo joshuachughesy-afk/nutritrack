@@ -148,12 +148,17 @@ class Service:
         import io
         import uuid
 
-        from PIL import Image, ImageOps
-        im = ImageOps.exif_transpose(Image.open(io.BytesIO(image))).convert("RGB")
-        im.thumbnail((320, 320))
-        buf = io.BytesIO()
-        im.save(buf, "JPEG", quality=72)
-        item = {"id": uuid.uuid4().hex[:10], "date": key, "meal": meal, "thumb": base64.b64encode(buf.getvalue()).decode(),
+        thumb = ""
+        try:
+            from PIL import Image, ImageOps
+            im = ImageOps.exif_transpose(Image.open(io.BytesIO(image))).convert("RGB")
+            im.thumbnail((320, 320))
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=72)
+            thumb = base64.b64encode(buf.getvalue()).decode()
+        except Exception:  # e.g. an iPhone HEIC photo Pillow can't read: keep the reminder without a picture
+            pass
+        item = {"id": uuid.uuid4().hex[:10], "date": key, "meal": meal, "thumb": thumb,
                 "created": datetime.now().isoformat(timespec="minutes")}
         queue = self.store.get("photo_queue", [])[-29:]  # keep at most 30
         self.store.set("photo_queue", queue + [item])

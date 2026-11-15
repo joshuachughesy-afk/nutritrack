@@ -379,7 +379,10 @@ def _photo_row(app: "App", meal: str, ph: dict) -> ft.Control:
         app.toast("Photo removed", undo=lambda: app.store.set("photo_queue", app.store.get("photo_queue", []) + [ph]))
 
     return ft.Container(ft.Row([
-        ft.Image(src=base64.b64decode(ph["thumb"]), width=52, height=52, fit=ft.BoxFit.COVER, border_radius=10),
+        ft.Image(src=base64.b64decode(ph["thumb"]), width=52, height=52, fit=ft.BoxFit.COVER, border_radius=10)
+        if ph.get("thumb") else ft.Container(ft.Icon(ft.Icons.PHOTO_CAMERA_OUTLINED, color=th.ACCENT), width=52, height=52,
+                                             border_radius=10, alignment=ft.Alignment.CENTER,
+                                             bgcolor=ft.Colors.with_opacity(0.12, th.ACCENT)),
         ft.Column([ft.Text("Photo to log", size=th.T.LABEL + 1, font_family=th.FONT_SEMI),
                    th.muted(f"Saved {ph['created'][11:16]}", th.T.CAPTION)], spacing=0, expand=True),
         ft.FilledTonalButton("Log it", on_click=lambda _: add_food.open_sheet(app, meal, photo=ph)),
