@@ -159,4 +159,11 @@ def plan_notifications(now: datetime, settings: dict, sched: dict, supps: list[S
                 plan.append(Planned(stable_id("water", from_min(t)), at(today, from_min(t)), "💧 Hydration check",
                                     f"You're at {water_fmt(water_ml)} of {water_fmt(targets.water_ml)}. By now you'd "
                                     f"want about {water_fmt(w.expected)}, so have a glass.", payload="today", kind="water"))
+    # Weekly recap: Sunday at 18:00 (the next one, re-planned on every sync).
+    days_to_sunday = (6 - now.weekday()) % 7
+    sunday = today + timedelta(days=days_to_sunday)
+    if days_to_sunday == 0 and now_min >= 18 * 60:
+        sunday += timedelta(days=7)
+    plan.append(Planned(stable_id("recap", "weekly"), at(sunday, "18:00"), "🌲 Your week in the forest",
+                        "See how your trees grew this week, and share it if you like.", payload="recap", kind="recap"))
     return plan

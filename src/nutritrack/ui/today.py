@@ -53,7 +53,11 @@ def build(app: "App") -> list[ft.Control]:
     svc, key = app.svc, app.date
     t = svc.targets_for(key)
     tot = svc.totals(key)
-    controls: list[ft.Control] = [_header(app), _day_type(app, t), card(app, "summary", t, tot)]
+    from . import recap
+    controls: list[ft.Control] = [_header(app), _day_type(app, t)]
+    if recap.due(app):
+        controls.append(recap.card(app))
+    controls.append(card(app, "summary", t, tot))
     tree = card(app, "tree", t, tot)
     if tree:
         controls.append(tree)

@@ -119,21 +119,31 @@ class Service:
 
     def period(self, days: int) -> PeriodSummary:
         end = date.fromisoformat(today_key())
-        self.store.prefetch((end - timedelta(days=days - 1)).isoformat(), end.isoformat())
+        return summarize(self._rows(end - timedelta(days=days - 1), end))
+
+    def _rows(self, start: date, end: date) -> list[DayRow]:
+        """One DayRow per day from start to end (inclusive), with the range prefetched in a few queries."""
+        self.store.prefetch(start.isoformat(), end.isoformat())
         rows: list[DayRow] = []
-        for i in range(days - 1, -1, -1):
-            k = (end - timedelta(days=i)).isoformat()
+        for i in range((end - start).days + 1):
+            k = (start + timedelta(days=i)).isoformat()
             t = self.targets_for(k)
             tot = self.totals(k)
             sched, taken = self.dose_counts(k) if self.store.doses(k) or k == today_key() else (0, 0)
-            logged = self.has_log(k)
             rows.append(DayRow(
                 date=k, kcal=tot.total["kcal"], target_kcal=t.kcal, protein=tot.total["protein"], carbs=tot.total["carbs"],
                 fat=tot.total["fat"], target_protein=t.protein, target_carbs=t.carbs, target_fat=t.fat,
                 water_ml=tot.water_ml, target_water=t.water_ml, doses_taken=taken, doses_scheduled=sched,
-                score=self.day_score(k), logged=logged,
+                score=self.day_score(k), logged=self.has_log(k),
                 micro_pct={m.key: tot.total[m.key] / t.micros[m.key].target for m in MICROS if not m.limit}))
-        return summarize(rows)
+        return rows
+
+    def week_recap(self, today: str | None = None):
+        """The last full week (Mon–Sun) compared with the week before."""
+        from .core.recap import build_recap, last_full_week
+        mon, sun = last_full_week(date.fromisoformat(today or today_key()))
+        rows = self._rows(mon - timedelta(days=7), sun)
+        return build_recap(rows[7:], rows[:7])
 
     # ---------- online foods ----------
     def usda_key(self) -> str | None:

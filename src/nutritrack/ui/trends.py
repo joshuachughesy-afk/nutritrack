@@ -27,8 +27,11 @@ def build(app: "App") -> list[ft.Control]:
         app.render()
 
     rng = cx.tabs([(str(n), f"{n} days") for n in (7, 30, 90)], str(days), set_range)
+    from . import recap
+    last_week = ft.Row([ft.TextButton("Last week's recap", icon=ft.Icons.AUTO_STORIES,
+                                      on_click=lambda _: recap.open_sheet(app))], alignment=ft.MainAxisAlignment.END)
     summary = app.svc.period(days)
-    return [rng, _adaptive_card(app), _weight_card(app, days), _calorie_card(app, summary), _averages_card(app, summary),
+    return [rng, last_week, _adaptive_card(app), _weight_card(app, days), _calorie_card(app, summary), _averages_card(app, summary),
             _micro_card(summary)]
 
 

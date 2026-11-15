@@ -129,6 +129,9 @@ class Notifier:
     # ---------- responses ----------
     def _on_tap(self, e) -> None:
         self.app.go("today", date.today().isoformat())
+        if (getattr(e, "payload", "") or "") == "recap":
+            from . import recap
+            recap.open_sheet(self.app)
 
     def _on_action(self, e) -> None:
         payload = getattr(e, "payload", "") or ""
