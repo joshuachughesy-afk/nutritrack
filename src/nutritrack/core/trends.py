@@ -125,14 +125,17 @@ class PeriodSummary:
     consistently_low: list[str]          # micros averaging < 70%
 
 
-def summarize(rows: list[DayRow]) -> PeriodSummary:
-    logged = [r for r in rows if r.logged]
+def summarize(rows: list[DayRow], partial: str | None = None) -> PeriodSummary:
+    """Averages over logged days. `partial` (today) still shows in `days` but stays out of the averages, so a
+    half-eaten day doesn't drag them down; it only counts if it's the only logged day."""
+    logged = [r for r in rows if r.logged and r.date != partial] or [r for r in rows if r.logged]
+    done = [r for r in rows if r.date != partial]
     n = len(logged) or 1
 
     def avg(attr):
         return sum(getattr(r, attr) for r in logged) / n if logged else 0.0
 
-    sched = sum(r.doses_scheduled for r in rows)
+    sched = sum(r.doses_scheduled for r in done)
     micro_keys = list(logged[0].micro_pct) if logged else []
     micro_avg = {k: sum(r.micro_pct.get(k, 0) for r in logged) / n for k in micro_keys}
     return PeriodSummary(
@@ -141,7 +144,7 @@ def summarize(rows: list[DayRow]) -> PeriodSummary:
         avg_macros={k: avg(k) for k in ("protein", "carbs", "fat")},
         avg_macro_targets={k: avg(f"target_{k}") for k in ("protein", "carbs", "fat")},
         avg_water=avg("water_ml"), avg_water_target=avg("target_water"),
-        supplement_adherence=(sum(r.doses_taken for r in rows) / sched) if sched else None,
+        supplement_adherence=(sum(r.doses_taken for r in done) / sched) if sched else None,
         tree_days=sum(1 for r in rows if r.score is not None and r.score >= 65),
         micro_avg=micro_avg,
         consistently_low=[k for k, v in sorted(micro_avg.items(), key=lambda x: x[1]) if v < 0.7],

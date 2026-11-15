@@ -280,3 +280,17 @@ def test_usda_goes_through_relay_without_a_personal_key():
     import pytest
     with pytest.raises(RuntimeError, match="busy"):
         online.usda_food(1, None, lambda u, h: {"error": {"code": "OVER_RATE_LIMIT"}}, relay="https://r")
+
+
+def test_today_stays_out_of_period_averages():
+    from nutritrack.core.trends import DayRow, summarize
+
+    def r(d, kcal, logged=True, taken=2, sched=2):
+        return DayRow(date=d, kcal=kcal, target_kcal=2000, protein=0, carbs=0, fat=0, target_protein=1, target_carbs=1,
+                      target_fat=1, water_ml=0, target_water=1, doses_taken=taken, doses_scheduled=sched, score=None,
+                      logged=logged)
+    rows = [r("2026-11-13", 2000), r("2026-11-14", 2200), r("2026-11-15", 300, taken=0)]
+    s = summarize(rows, partial="2026-11-15")
+    assert s.avg_kcal == 2100 and s.logged_days == 2 and s.supplement_adherence == 1.0 and len(s.days) == 3
+    only_today = summarize([r("2026-11-15", 300)], partial="2026-11-15")
+    assert only_today.avg_kcal == 300

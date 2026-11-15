@@ -14,7 +14,7 @@ import flet.canvas as cv
 
 from ..core.garden import STAGES, TREE_DAY, growth_tips, stage_for
 from ..core.nutrition import MACROS, MICROS, fmt, micro_status
-from ..core.pacing import compute_pace, pace_summary, to_min
+from ..core.pacing import compute_pace, day_min, pace_summary, sleep_min, to_min
 from ..service import pretty_date, shift, today_key
 from . import add_food, motion
 from . import components as cx
@@ -66,7 +66,7 @@ def build(app: "App") -> list[ft.Control]:
                                       ft.Container(card(app, "supps", t, tot), col={"xs": 12, "md": 6})],
                                      spacing=16, run_spacing=16))
     controls.append(card(app, "micros", t, tot))
-    if key == today_key() and app.store.day(key).get("weight_kg") is None:
+    if key == today_key() and app.store.day(key).get("weight_kg") is None and app.store.get("weighin_skip") != key:
         controls.append(_weigh_in(app))
     return controls
 
@@ -76,7 +76,9 @@ def _greeting(hour: int | None = None) -> str:
     h = datetime.now().hour if hour is None else hour
     if 4 <= h < 12:
         return "Good morning"
-    return "Good afternoon" if 12 <= h < 17 else "Good evening"  # 17:00 until 03:59
+    if 12 <= h < 17:
+        return "Good afternoon"
+    return "Good evening" if h >= 17 else "Up late"  # 00:00–03:59: a new day has started, but it's night
 
 
 def _header(app: "App") -> ft.Control:
@@ -157,8 +159,8 @@ def _pace_rows(app: "App", t, tot):
         return None, ""
     now = datetime.now()
     sched = app.store.schedule()
-    m = now.hour * 60 + now.minute
-    if m < to_min(sched["breakfast"]) + 30 or m > to_min(sched["sleep"]):
+    m = day_min(sched, now.hour * 60 + now.minute)
+    if m < to_min(sched["breakfast"]) + 30 or m > sleep_min(sched):
         return None, f"Pace check starts after breakfast ({sched['breakfast']})." if m < to_min(sched["breakfast"]) + 30 else ""
     rows = compute_pace(t, tot.total, tot.water_ml, sched, m)
     if all(r.status == "early" for r in rows):
@@ -247,7 +249,9 @@ def _tree_card(app: "App") -> ft.Control | None:
                                  animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT))
                     for lo, _, _ in STAGES[1:]], spacing=4)
     now_h = datetime.now().hour
-    if is_today and score < 40 and now_h < 11:
+    if is_today and score < 40 and now_h < 4:
+        status = "A new day has started. Sleep well; your tree grows with breakfast."
+    elif is_today and score < 40 and now_h < 11:
         status = "Just waking up. Breakfast gets it growing."
     elif is_today:
         status = f"{nxt[0] - score} points to a {nxt[1].lower()}" if nxt else STAGES[stage][2]
@@ -451,7 +455,8 @@ def _water(app: "App", t, tot) -> ft.Control:
         motion.haptic("light")
         app.store.add_water(app.date, ml)
         app.refresh("water", "summary", "tree")
-        app.toast(f"Added {lbl} of water", undo=lambda: app.store.undo_water(app.date))
+        key = app.date
+        app.toast(f"Added {lbl} of water", undo=lambda: app.store.undo_water(key))
 
     level_start = motion.start_value(f"water:{app.date}", min(pct, 1))
     level = ft.Container(gradient=ft.LinearGradient(begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER,
@@ -557,6 +562,11 @@ def _weigh_in(app: "App") -> ft.Control:
         app.toast("Weight logged. Your trend is in Progress → Trends.")
 
     field.on_submit = save
-    return th.card(th.heading("Morning weigh-in", "optional", icon=ft.Icons.MONITOR_WEIGHT_OUTLINED),
+    def skip(_):
+        app.store.set("weighin_skip", app.date)
+        app.render()
+
+    return th.card(th.heading("Morning weigh-in", ft.TextButton("Not today", on_click=skip),
+                              icon=ft.Icons.MONITOR_WEIGHT_OUTLINED),
                    th.muted("A few weigh-ins a week let Sapling learn your real daily burn.", th.T.CAPTION),
                    ft.Row([field, ft.FilledTonalButton("Log", on_click=save)], spacing=8), spacing=10)

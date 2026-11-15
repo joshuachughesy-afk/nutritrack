@@ -18,6 +18,19 @@ def to_min(hhmm: str) -> int:
     return int(h) * 60 + int(m or 0)
 
 
+def sleep_min(sched: dict) -> int:
+    """Bedtime in minutes after the start of the wake day: a bedtime after midnight (00:30) counts as 24:30."""
+    s, w = to_min(sched["sleep"]), to_min(sched["wake"])
+    return s + 1440 if s <= w else s
+
+
+def day_min(sched: dict, now_min: float) -> float:
+    """The clock time on the same scale: 00:15 is 24:15 when you're still up from the day before."""
+    if now_min < to_min(sched["wake"]) and to_min(sched["sleep"]) <= to_min(sched["wake"]):
+        return now_min + 1440
+    return now_min
+
+
 def from_min(m: float) -> str:
     return f"{int(m // 60) % 24:02d}:{int(m % 60 + 0.5):02d}"
 
@@ -38,14 +51,14 @@ def expected_food_share(sched: dict, now_min: float) -> float:
         (to_min(sched["breakfast"]) + 30, 0.25),
         (to_min(sched["lunch"]) + 30, 0.55),
         (to_min(sched["dinner"]) + 45, 0.9),
-        (max(to_min(sched["dinner"]) + 46, to_min(sched["sleep"]) - 60), 1.0),
+        (max(to_min(sched["dinner"]) + 46, sleep_min(sched) - 60), 1.0),
     ]
-    return _interpolate(pts, now_min)
+    return _interpolate(pts, day_min(sched, now_min))
 
 
 def expected_water_share(sched: dict, now_min: float) -> float:
     """Water spreads evenly from waking until an hour before bed."""
-    return _interpolate([(to_min(sched["wake"]), 0.0), (to_min(sched["sleep"]) - 60, 1.0)], now_min)
+    return _interpolate([(to_min(sched["wake"]), 0.0), (sleep_min(sched) - 60, 1.0)], day_min(sched, now_min))
 
 
 @dataclass

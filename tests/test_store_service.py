@@ -227,3 +227,15 @@ def test_new_rewards_are_celebrated_once(tmp_path, monkeypatch):
     msgs = svc.check_growth("2000-01-01", 0)
     assert any("stepping stones" in m for m in msgs)
     assert not any("valley" in m for m in svc.check_growth("2000-01-01", 0))
+
+
+def test_pacing_handles_a_bedtime_after_midnight():
+    from nutritrack.core.pacing import DEFAULT_SCHEDULE, day_min, expected_food_share, expected_water_share, sleep_min
+    late = {**DEFAULT_SCHEDULE, "wake": "08:00", "sleep": "00:30"}
+    assert sleep_min(late) == 24 * 60 + 30
+    assert day_min(late, 15) == 24 * 60 + 15 and day_min(late, 600) == 600
+    assert 0 < expected_water_share(late, 12 * 60) < 1        # mid-day: part way, not 100%
+    assert expected_water_share(late, 23 * 60 + 40) == 1      # an hour before a 00:30 bedtime
+    assert expected_food_share(late, 10) == 1                  # 00:10, still up: the day's food is expected
+    normal = {**DEFAULT_SCHEDULE}
+    assert expected_water_share(normal, 6 * 60) == 0          # before waking on a normal schedule

@@ -287,15 +287,18 @@ def _reminders(app: "App", p: Profile) -> list[ft.Control]:
 
     def draw_checks():
         def setter(i, v):
-            checkins[i] = v
+            if i < len(checkins):
+                checkins[i] = v
 
         def remove(i):
+            if i >= len(checkins):  # a double tap on a row that is already gone
+                return
             checkins.pop(i)
             draw_checks()
             check_row.update()
 
         def add(_):
-            checkins.append("20:00" if not checkins else "12:00")
+            checkins.append(next(t for t in ("20:00", "12:00", "16:00", "09:00") if t not in checkins))
             draw_checks()
             check_row.update()
 

@@ -12,13 +12,13 @@ import hashlib
 from datetime import date
 from typing import TYPE_CHECKING
 
-
 try:  # optional at import time so tests and plain web runs work without it
     import flet_notifications as ftn
 except Exception:  # pragma: no cover
     ftn = None
 
 from ..diagnostics import log
+from ..service import today_key
 
 if TYPE_CHECKING:
     from .app import App
@@ -91,6 +91,7 @@ class Notifier:
         client costs the server nothing.
         """
         last_sig = None
+        day = today_key()
         while not self.app.closed:
             await asyncio.sleep(60)
             if self.app.closed:
@@ -98,6 +99,13 @@ class Notifier:
             if not self.app.visible:
                 continue
             try:
+                if today_key() != day:  # midnight passed with the app open: move Today to the new day
+                    old, day = day, today_key()
+                    self.app.svc.finalize_garden()
+                    if self.app.view == "today" and self.app.date == old:
+                        self.app.date = day
+                        self.app.render()
+                    self.request_sync()
                 events = self.app.svc.due_now()
                 for ev in events:
                     if not self.can_schedule and self.service is not None:

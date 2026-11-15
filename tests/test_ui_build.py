@@ -147,7 +147,7 @@ def test_fake_app_matches_real_app_interface():
 
 def test_greeting_covers_every_hour():
     expected = {**{h: "Good morning" for h in range(4, 12)}, **{h: "Good afternoon" for h in range(12, 17)},
-                **{h: "Good evening" for h in [*range(17, 24), *range(0, 4)]}}
+                **{h: "Good evening" for h in range(17, 24)}, **{h: "Up late" for h in range(0, 4)}}
     assert {h: today._greeting(h) for h in range(24)} == expected
 
 

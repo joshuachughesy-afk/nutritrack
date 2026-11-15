@@ -119,7 +119,7 @@ class Service:
 
     def period(self, days: int) -> PeriodSummary:
         end = date.fromisoformat(today_key())
-        return summarize(self._rows(end - timedelta(days=days - 1), end))
+        return summarize(self._rows(end - timedelta(days=days - 1), end), partial=end.isoformat())
 
     def _rows(self, start: date, end: date) -> list[DayRow]:
         """One DayRow per day from start to end (inclusive), with the range prefetched in a few queries."""

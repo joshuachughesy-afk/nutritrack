@@ -16,7 +16,7 @@ from typing import Callable
 
 from .foods import Food
 from .nutrition import Nutrients, Targets
-from .pacing import compute_pace, from_min, micro_gaps, pace_summary, to_min
+from .pacing import compute_pace, from_min, micro_gaps, pace_summary, sleep_min, to_min
 from .supplements import Supplement
 
 DEFAULT_REMINDERS = {
@@ -53,7 +53,7 @@ class Planned:
 
 def _water_slots(sched: dict, every_h: float) -> list[int]:
     step = max(30, int(every_h * 60))
-    first, last = to_min(sched["wake"]) + 120, to_min(sched["sleep"]) - 60
+    first, last = to_min(sched["wake"]) + 120, min(sleep_min(sched) - 60, 23 * 60 + 59)  # same-day slots only
     return list(range(first, last + 1, step))
 
 

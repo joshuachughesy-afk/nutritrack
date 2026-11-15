@@ -222,6 +222,8 @@ def _editor(app: "App", editing: str) -> list[ft.Control]:
             times_state[i] = v
 
         def remove(i):
+            if i >= len(times_state) or len(times_state) == 1:  # keep at least one dose time
+                return
             times_state.pop(i)
             draw_times()
             times_row.update()
