@@ -103,6 +103,24 @@ Measured on 5 weeks of sample data, for the render that follows a write:
 Tap any food on Today to change its amount, unit or meal (or delete it). The editor starts from what you logged, and
 recognises clean serving multiples ("172 g" opens as "1 breast"). Quick adds open as an editable quick add.
 
+## Seasons and holidays
+
+* **Seasons** follow your hemisphere. In **summer** a bright sun turns in the sky over your tree and hangs above the
+  valley. In **autumn** leaves drift down and lie on the ground. **Winter** has falling snow on snowy islands. In
+  **spring** flowers sprout from the ground, with butterflies and rabbits in the valley.
+* **Holidays** dress the forest on the day itself:
+  * Christmas (18–26 Dec): fairy lights, a star and presents, with twinkling lights.
+  * New Year (30 Dec–2 Jan): an evening sky, gold lanterns and fireworks.
+  * Valentine's Day: floating hearts.
+  * Lunar New Year: red lanterns.
+  * St Patrick's Day: clover.
+  * Easter (Good Friday to Easter Monday, calculated each year): painted eggs, a white rabbit and pastel petals.
+  * Halloween (27–31 Oct): a moonlit sky, glowing pumpkins and bats.
+* On the day, Today shows a small greeting you can dismiss.
+* The animations are a few light particles that Flutter animates on the device. They never block taps or dragging,
+  and they pause in the background. **Profile → Appearance** has switches for holiday themes and animated effects.
+* To preview any theme while developing, set `SAPLING_THEME=christmas` (or `winter`, `easter`, …).
+
 ## Your valley
 
 Every full tree (65+ points), longer best streaks and higher levels unlock things in the forest valley: wildflowers,

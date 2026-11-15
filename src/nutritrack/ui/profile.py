@@ -353,6 +353,10 @@ def _appearance(app: "App", p: Profile) -> list[ft.Control]:
         app.store.set("hemisphere", v)
         app.render()
 
+    def toggle(key, v):
+        app.store.set(key, v)
+        app.render()
+
     return [
         th.card(th.label("Theme"),
                 cx.tabs([("system", "Auto"), ("light", "Light"), ("dark", "Dark")], mode, app.set_theme_mode),
@@ -362,6 +366,12 @@ def _appearance(app: "App", p: Profile) -> list[ft.Control]:
                          f"{app.svc.season()} now.", th.T.CAPTION),
                 cx.tabs([("north", "North"), ("south", "South"), ("off", "Summer")], app.store.get("hemisphere", "north"), hemi),
                 th.muted("North or South of the equator, or always summer.", th.T.CAPTION), spacing=10),
+        th.card(cx.toggle_row("Holiday themes", app.store.get("holidays", True), lambda v: toggle("holidays", v),
+                              sub="Christmas lights, New Year fireworks, Easter eggs, Halloween pumpkins and more, on "
+                                  "the days themselves."),
+                cx.toggle_row("Animated effects", app.store.get("effects", True), lambda v: toggle("effects", v),
+                              sub="Falling snow and leaves, spring flowers and the summer sun over your tree and forest."),
+                spacing=12),
     ]
 
 

@@ -11,7 +11,7 @@ import flet as ft
 from ..core import render3d
 from ..core.garden import stage_for
 from ..service import today_key
-from . import motion
+from . import ambient, motion
 from . import theme as th
 
 from ..diagnostics import log
@@ -43,7 +43,8 @@ class ForestView:
     def __init__(self, app: "App"):
         self.app = app
         self.trees = forest_trees(app)
-        self.extras = app.svc.rewards()
+        self.theme = app.svc.theme()
+        self.extras = tuple(app.svc.rewards()) + self.theme.decor
         self.season = app.svc.season()
         self.angle = 0
         self.flying = False
@@ -58,7 +59,8 @@ class ForestView:
         self.control = th.card(
             th.heading("Your forest", f"{count} tree{'s' if count != 1 else ''} planted · {self.season}",
                        icon=ft.Icons.FOREST),
-            ft.Container(ft.Stack([gesture, ft.Container(self.fly_btn, right=8, top=8)]), aspect_ratio=W / H,
+            ft.Container(ft.Stack([gesture, *([ambient.layer(app, self.theme.ambient, 12, seed=7)] if self.theme.ambient != "sun" else []),
+                                   ft.Container(self.fly_btn, right=8, top=8)]), aspect_ratio=W / H,
                          border_radius=18, clip_behavior=ft.ClipBehavior.HARD_EDGE),
             th.muted("Drag to look around. Today is closest; older days are further up the valley.", th.T.CAPTION),
             spacing=10,

@@ -223,9 +223,19 @@ class Service:
 
     # ---------- seasons ----------
     def season(self, key: str | None = None) -> str:
+        import os
+
         from .core.render3d import season_for
+        from .core.themes import SEASON_AMBIENT
+        if os.getenv("SAPLING_THEME") in SEASON_AMBIENT:  # preview a season (development)
+            return os.environ["SAPLING_THEME"]
         d = date.fromisoformat(key or today_key())
         return season_for(d.month, self.store.get("hemisphere", "north"))
+
+    def theme(self, key: str | None = None):
+        """Season plus any holiday for a day (Profile → Appearance can turn holidays off)."""
+        from .core.themes import theme_for
+        return theme_for(date.fromisoformat(key or today_key()), self.season(key), self.store.get("holidays", True))
 
     def lookup_barcode(self, code: str) -> Food | None:
         return online.lookup_barcode(code)

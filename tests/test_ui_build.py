@@ -18,6 +18,7 @@ class FakePage:
     def __init__(self):
         self.dialogs = []
     def update(self, *a): pass
+    def run_task(self, fn, *a, **k): self.tasks = getattr(self, "tasks", []) + [fn]  # recorded, not run
     def show_dialog(self, d): self.dialogs.append(d)
     def pop_dialog(self): self.dialogs.pop() if self.dialogs else None
 

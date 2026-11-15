@@ -54,7 +54,11 @@ def build(app: "App") -> list[ft.Control]:
     t = svc.targets_for(key)
     tot = svc.totals(key)
     from . import recap
-    controls: list[ft.Control] = [_header(app), _day_type(app, t)]
+    controls: list[ft.Control] = [_header(app)]
+    banner = _holiday_banner(app)
+    if banner:
+        controls.append(banner)
+    controls.append(_day_type(app, t))
     if recap.due(app):
         controls.append(recap.card(app))
     controls.append(card(app, "summary", t, tot))
@@ -122,6 +126,25 @@ def _day_type(app: "App", t) -> ft.Control:
         app.render()
 
     return cx.tabs([("training", "Training day"), ("rest", "Rest day")], t.day_type, change)
+
+
+def _holiday_banner(app: "App") -> ft.Control | None:
+    """A small greeting on holidays, shown on today until dismissed."""
+    hol = app.svc.theme(app.date).holiday
+    if not hol or app.date != today_key() or app.store.get("holiday_seen") == f"{hol.key}:{app.date}":
+        return None
+
+    def dismiss(_):
+        app.store.set("holiday_seen", f"{hol.key}:{app.date}")
+        app.render()
+
+    return ft.Container(ft.Row([
+        ft.Icon(getattr(ft.Icons, hol.icon, ft.Icons.CELEBRATION), color=th.ink(hol.accent)),
+        ft.Text(hol.greeting, size=th.T.LABEL, expand=True),
+        ft.IconButton(ft.Icons.CLOSE, icon_size=16, tooltip="Dismiss", on_click=dismiss),
+    ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        padding=ft.Padding.only(left=12, top=4, bottom=4, right=4), border_radius=th.R.MD,
+        bgcolor=ft.Colors.with_opacity(0.14, hol.accent))
 
 
 # ---------- calories, macros and pace ----------
@@ -242,8 +265,9 @@ def _tree_card(app: "App") -> ft.Control | None:
     nxt = STAGES[stage + 1] if stage + 1 < len(STAGES) else None
     grew = bool(getattr(app, "grew", False)) and is_today
 
+    theme = svc.theme(key)
     tree = TreeView(svc.species_for(key), stage, size=128, grew=grew, on_tap=lambda _: app.go("garden"),
-                    season=svc.season(key))
+                    season=theme.season, decor=theme.decor)
     track = ft.Row([ft.Container(height=6, expand=True, border_radius=99,
                                  bgcolor=th.ACCENT_SOFT if score >= lo else ft.Colors.with_opacity(0.22, ft.Colors.ON_SURFACE),
                                  animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT))
@@ -292,7 +316,9 @@ def _tree_card(app: "App") -> ft.Control | None:
         for tip in tips:
             items.append(ft.Row([th.chip(f"+{round(tip.gain)}", th.ACCENT), ft.Text(tip.text, size=th.T.LABEL, expand=True)],
                                 spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
-    return th.card(*items, gradient=sky, padding=14, spacing=8)
+    from . import ambient
+    return th.card(ft.Stack([ft.Column(items, spacing=8, tight=True), ambient.layer(app, theme.ambient, 8)]),
+                   gradient=sky, padding=14, spacing=8)
 
 
 # ---------- meals ----------

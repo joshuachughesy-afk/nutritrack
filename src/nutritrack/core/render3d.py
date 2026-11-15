@@ -301,9 +301,10 @@ def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevatio
            supersample: int = 3, shadow: bool = True, snow: bool = False, height: int | None = None,
            zoom: float = 0.385, center_y: float = 0.72, camera_dist: float | None = None,
            fog: tuple[float, float, tuple[int, int, int]] | None = None,
-           sky: tuple[tuple[int, int, int], tuple[int, int, int]] | None = None) -> bytes:
+           sky: tuple[tuple[int, int, int], tuple[int, int, int]] | None = None, celestial: str | None = None) -> bytes:
     """Orthographic by default (single trees); with `camera_dist`, a perspective camera that far from the centre.
-    `fog` = (start, end, colour) fades distant faces toward the horizon; `sky` = (top, horizon) paints a backdrop."""
+    `fog` = (start, end, colour) fades distant faces toward the horizon; `sky` = (top, horizon) paints a backdrop;
+    `celestial` ("sun" or "moon") adds a glowing disc in that sky which moves as the camera turns."""
     from PIL import Image, ImageDraw, ImageFilter
 
     w_px, h_px = size, height or size
@@ -362,6 +363,8 @@ def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevatio
             t = min(1.0, yy / (ss_h * 0.55))
             grad.putpixel((0, yy), tuple(int(top[i] * (1 - t) + hor[i] * t) for i in range(3)) + (255,))
         img = grad.resize((ss, ss_h))
+        if celestial:
+            img = _celestial(img, celestial, angle_deg, ss, ss_h)
     if shadow:  # soft contact shadow beneath the floating island
         sh = Image.new("RGBA", (ss, ss_h), (0, 0, 0, 0))
         ImageDraw.Draw(sh).ellipse([ox - scale * 0.8, oy + scale * 0.62, ox + scale * 0.8, oy + scale * 0.8], fill=(0, 0, 0, 70))
@@ -377,9 +380,116 @@ def render(faces: list[Face], angle_deg: float = 30.0, size: int = 256, elevatio
     return buf.getvalue()
 
 
+def _celestial(img, kind: str, angle_deg: float, w: int, h: int):
+    """A sun (with a soft glow and rays) or a moon, painted into the sky backdrop. It sits in one direction of the
+    world, so it slides across the sky as you orbit the valley, and is hidden when you face away from it."""
+    from PIL import Image, ImageDraw, ImageFilter
+    rel = math.radians((angle_deg - 35) % 360)
+    if math.cos(rel) < 0.15:
+        return img
+    cx, cy, r = w * (0.5 + 0.62 * math.sin(rel)), h * 0.085, w * 0.04
+    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    g = ImageDraw.Draw(glow)
+    if kind == "sun":
+        for k, a in ((5.0, 40), (3.4, 70), (2.2, 110)):
+            g.ellipse([cx - r * k, cy - r * k, cx + r * k, cy + r * k], fill=(255, 236, 160, a))
+        glow = glow.filter(ImageFilter.GaussianBlur(r * 0.9))
+        img = Image.alpha_composite(img, glow)
+        d = ImageDraw.Draw(img)
+        for i in range(12):  # rays
+            a = i * math.pi / 6
+            d.line([cx + math.cos(a) * r * 1.35, cy + math.sin(a) * r * 1.35, cx + math.cos(a) * r * 2.0,
+                    cy + math.sin(a) * r * 2.0], fill=(255, 226, 120, 230), width=max(2, int(r * 0.16)))
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 241, 170, 255))
+        d.ellipse([cx - r * 0.75, cy - r * 0.75, cx + r * 0.75, cy + r * 0.75], fill=(255, 250, 215, 255))
+    else:  # moon
+        g.ellipse([cx - r * 3, cy - r * 3, cx + r * 3, cy + r * 3], fill=(230, 230, 255, 60))
+        img = Image.alpha_composite(img, glow.filter(ImageFilter.GaussianBlur(r)))
+        d = ImageDraw.Draw(img)
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(245, 243, 225, 255))
+        for ox, oy, rr in ((-0.3, -0.2, 0.22), (0.25, 0.3, 0.16), (0.1, -0.45, 0.1)):  # craters
+            d.ellipse([cx + ox * r - rr * r, cy + oy * r - rr * r, cx + ox * r + rr * r, cy + oy * r + rr * r],
+                      fill=(222, 219, 200, 255))
+    return img
+
+
+def _tree_decor(faces: list[Face], species: str, stage: int, decor: tuple[str, ...], rnd: random.Random) -> list[Face]:
+    """Holiday dressing on a single tree: fairy lights / baubles and a star at Christmas, lanterns at Lunar New Year."""
+    if stage < 2 or not decor:
+        return faces
+    h = {2: 0.46, 3: 0.62, 4: 0.86, 5: 0.94}[stage]
+    r = {2: 0.2, 3: 0.4, 4: 0.6, 5: 0.7}[stage]
+    top = h + r * (1.6 if species == "pine" else 1.15)
+    out = list(faces)
+    if "lights" in decor:
+        cols = ["#ff4d4d", "#ffd84d", "#4dd2ff", "#ff8de0", "#7dff7a"]
+        for k in range(8 + stage * 3):
+            ang = k * 2.4
+            f = 0.15 + 0.8 * (k / (8 + stage * 3))
+            y = h * 0.6 + (top - h * 0.6) * f
+            rad = r * (1.05 - f * 0.75) * (0.95 if species == "pine" else 0.85)
+            out += _icosphere((math.cos(ang) * rad, y, math.sin(ang) * rad), (0.035, 0.035, 0.035),
+                              _hex(cols[k % len(cols)]), rnd, 0, 0.0)
+    if "star" in decor:
+        out += _icosphere((0, top + 0.06, 0), (0.07, 0.07, 0.03), _hex("#ffd84d"), rnd, 0, 0.35)
+    if "red_lanterns" in decor:
+        for k in range(3):
+            ang = k * 2.1 + 0.4
+            out += _icosphere((math.cos(ang) * r * 0.9, h + r * 0.1, math.sin(ang) * r * 0.9), (0.05, 0.065, 0.05),
+                              _hex("#e63946"), rnd, 0, 0.0)
+    return out
+
+
 @lru_cache(maxsize=512)
-def tree_png(species: str, stage: int, angle: int = 30, size: int = 256, season: str = "summer") -> bytes:
-    return render(tree_mesh(species, stage, season), angle_deg=angle, size=size, snow=season == "winter")
+def tree_png(species: str, stage: int, angle: int = 30, size: int = 256, season: str = "summer",
+             decor: tuple[str, ...] = ()) -> bytes:
+    faces = _tree_decor(tree_mesh(species, stage, season), species, stage, decor, random.Random(f"{species}{stage}d"))
+    if decor:
+        faces += _island_decor(decor, season, random.Random(f"isl-{species}-{stage}"))
+    return render(faces, angle_deg=angle, size=size, snow=season == "winter")
+
+
+def _island_decor(decor: tuple[str, ...], season: str, rnd: random.Random) -> list[Face]:
+    """Small seasonal and holiday touches on a single tree's island."""
+    out: list[Face] = []
+
+    def spot(lo=0.3, hi=0.62):
+        a, d = rnd.uniform(0, 2 * math.pi), rnd.uniform(lo, hi)
+        return math.cos(a) * d, math.sin(a) * d
+
+    if "presents" in decor:
+        for col in ("#d62828", "#2a9d8f", "#f4a261"):
+            x, z = spot(0.28, 0.45)
+            out += _box(x, 0.0, z, 0.13, 0.11, 0.13, _hex(col), rnd, rnd.uniform(0, 1))
+            out += _box(x, 0.11, z, 0.14, 0.015, 0.03, _hex("#ffd84d"), rnd)
+    if "eggs" in decor:
+        for col in ("#ff9ec7", "#9ad0ff", "#ffe066", "#b6f09c", "#c9a7ff"):
+            x, z = spot()
+            out += _icosphere((x, 0.05, z), (0.035, 0.05, 0.035), _hex(col), rnd, 1, 0.0)
+    if "pumpkins" in decor:
+        for _ in range(2):
+            x, z = spot()
+            out += _icosphere((x, 0.05, z), (0.09, 0.06, 0.09), _hex("#f77f00"), rnd, 1, 0.08)
+            out += _frustum(0.1, 0.15, 0.012, 0.008, _hex("#4f772d"), rnd, 4, x=x, z=z)
+    if "blooms" in decor:
+        for _ in range(10):
+            x, z = spot(0.25, 0.65)
+            out += _frustum(0.0, 0.07, 0.008, 0.006, _hex("#4f8a3c"), rnd, 3, x=x, z=z)
+            out += _icosphere((x, 0.08, z), (0.03, 0.02, 0.03), _hex(rnd.choice(["#ffd84d", "#ff8de0", "#ffffff", "#b48ef0"])),
+                              rnd, 0, 0.1)
+    if "clover" in decor:
+        for _ in range(6):
+            x, z = spot()
+            for k in range(3):
+                a = k * 2.09
+                out += _icosphere((x + math.cos(a) * 0.025, 0.03, z + math.sin(a) * 0.025), (0.025, 0.008, 0.025),
+                                  _hex("#2e9e4f"), rnd, 0, 0.05)
+    if "leaf_litter" in decor:
+        for _ in range(14):
+            x, z = spot(0.2, 0.68)
+            out += _icosphere((x, 0.012, z), (0.04, 0.006, 0.03), _hex(rnd.choice(["#d9822b", "#c0392b", "#e8b43a"])),
+                              rnd, 0, 0.2)
+    return out
 
 
 # ---------- the whole forest: a valley ----------
@@ -507,6 +617,97 @@ def _decor(extras: tuple[str, ...], season: str, rnd: random.Random) -> list[Fac
             a = k * math.pi / 2 + 0.3
             tip = (hub[0] + math.cos(a) * 1.3, hub[1] + math.sin(a) * 1.3, hub[2])
             faces += _limb(hub, tip, 0.12, 0.1, _hex("#cfc6b4"), rnd, 4)
+    # ---- seasons ----
+    if "leaf_litter" in extras:  # autumn: fallen leaves settled on the ground
+        for _ in range(160):
+            z = rnd.uniform(-11, 6)
+            x = _path_x(z) + rnd.uniform(-5, 5)
+            if abs(x - _path_x(z)) < 0.5:
+                continue
+            col = _hex(rnd.choice(["#d9822b", "#c0392b", "#e8b43a", "#a0522d"]))
+            faces += _icosphere((x, g(x, z) + 0.02, z), (0.09, 0.012, 0.06), col, rnd, 0, 0.2)
+    if "blooms" in extras:  # spring: shoots and flowers coming up out of the ground
+        for _ in range(90):
+            z = rnd.uniform(-10, 6)
+            x = _path_x(z) + rnd.choice((-1, 1)) * rnd.uniform(0.6, 4.5)
+            y = g(x, z)
+            faces += transform(_frustum(0.0, 0.16, 0.015, 0.01, _hex("#4f8a3c"), rnd, 3), 1.0, (x, y, z))
+            faces += _icosphere((x, y + 0.18, z), (0.06, 0.04, 0.06),
+                                _hex(rnd.choice(["#ffd84d", "#ff8de0", "#ffffff", "#b48ef0", "#ff9f5a"])), rnd, 0, 0.1)
+    if "butterflies" in extras:
+        for _ in range(9):
+            z = rnd.uniform(-6, 4)
+            x, y = _path_x(z) + rnd.uniform(-3, 3), g(0, z) + rnd.uniform(0.9, 1.8)
+            col = _hex(rnd.choice(["#ffb703", "#8ecae6", "#ff8de0", "#ffffff"]))
+            faces += [((x, y, z), (x - 0.16, y + 0.1, z - 0.05), (x - 0.12, y - 0.06, z + 0.04), col),
+                      ((x, y, z), (x + 0.16, y + 0.1, z - 0.05), (x + 0.12, y - 0.06, z + 0.04), col)]
+    if "rabbits" in extras or "bunny" in extras:
+        for k in range(3 if "rabbits" in extras else 1):
+            z = -2.0 + k * 3.1
+            x = _path_x(z) + (2.1 if k % 2 else -2.3)
+            y = g(x, z)
+            fur = _hex("#f4f1ea" if "bunny" in extras else "#b08968")
+            faces += _icosphere((x, y + 0.12, z), (0.16, 0.12, 0.12), fur, rnd, 1, 0.05)
+            faces += _icosphere((x + 0.14, y + 0.24, z), (0.08, 0.07, 0.07), fur, rnd, 0, 0.05)
+            for ez in (-0.03, 0.03):
+                faces += _limb((x + 0.15, y + 0.29, z + ez), (x + 0.13, y + 0.45, z + ez * 2), 0.025, 0.015, fur, rnd, 3)
+    if "snowfall" in extras:  # winter: flakes hanging in the air (the cards add falling snow on top)
+        for _ in range(120):
+            x, y, z = rnd.uniform(-9, 9), rnd.uniform(0.6, 6.0), rnd.uniform(-11, 6)
+            faces += _icosphere((x, g(x, z) + y, z), (0.045, 0.045, 0.045), _hex("#ffffff"), rnd, 0, 0.0)
+    # ---- holidays ----
+    if "lights" in extras:  # Christmas: strings of coloured lights along both banks
+        cols = ["#ff4d4d", "#ffd84d", "#4dd2ff", "#ff8de0", "#7dff7a"]
+        for side in (-1, 1):
+            for k in range(46):
+                z = -10.5 + k * 0.38
+                x = _path_x(z) + side * 0.62
+                faces += _icosphere((x, g(x, z) + 0.18 + 0.05 * math.sin(k * 1.3), z), (0.045, 0.045, 0.045),
+                                    _hex(cols[k % len(cols)]), rnd, 0, 0.0)
+    if "presents" in extras:
+        for k in range(5):
+            z = 3.0 + k * 0.5
+            x = _path_x(z) + (1.2 if k % 2 else -1.25)
+            faces += _box(x, g(x, z), z, 0.28, 0.22, 0.28, _hex(["#d62828", "#2a9d8f", "#f4a261", "#3a86ff", "#8338ec"][k]),
+                          rnd, k * 0.4)
+            faces += _box(x, g(x, z) + 0.22, z, 0.3, 0.03, 0.07, _hex("#ffd84d"), rnd, k * 0.4)
+    if "eggs" in extras:  # Easter: painted eggs hidden in the grass
+        for _ in range(22):
+            z = rnd.uniform(-8, 5)
+            x = _path_x(z) + rnd.choice((-1, 1)) * rnd.uniform(0.8, 3.5)
+            faces += _icosphere((x, g(x, z) + 0.08, z), (0.07, 0.1, 0.07),
+                                _hex(rnd.choice(["#ff9ec7", "#9ad0ff", "#ffe066", "#b6f09c", "#c9a7ff"])), rnd, 1, 0.0)
+    if "pumpkins" in extras:  # Halloween: pumpkins with a warm glow
+        for _ in range(12):
+            z = rnd.uniform(-8, 5)
+            x = _path_x(z) + rnd.choice((-1, 1)) * rnd.uniform(0.9, 3.2)
+            y = g(x, z)
+            faces += _icosphere((x, y + 0.13, z), (0.22, 0.15, 0.22), _hex("#f77f00"), rnd, 1, 0.08)
+            faces += transform(_frustum(0.0, 0.1, 0.03, 0.02, _hex("#4f772d"), rnd, 4), 1.0, (x, y + 0.26, z))
+            faces += _icosphere((x + 0.15, y + 0.15, z), (0.03, 0.04, 0.05), _hex("#ffe08a"), rnd, 0, 0.0)  # carved face
+    if "red_lanterns" in extras or "lanterns_gold" in extras:
+        col = _hex("#e63946" if "red_lanterns" in extras else "#ffd166")
+        for z in (-9, -6.5, -4, -1.5, 1, 3.5):
+            for side in (-1, 1):
+                x = _path_x(z) + side * 1.4
+                y = g(x, z)
+                faces += _box(x, y, z, 0.04, 1.1, 0.04, _hex("#5c3b22"), rnd)
+                faces += _icosphere((x, y + 1.05, z), (0.13, 0.17, 0.13), col, rnd, 1, 0.0)
+    if "hearts" in extras:  # Valentine's: hearts floating over the valley
+        for _ in range(14):
+            x, y, z = rnd.uniform(-6, 6), rnd.uniform(1.5, 4.5), rnd.uniform(-9, 3)
+            col = _hex(rnd.choice(["#ff4d6d", "#ff8fa3", "#c9184a"]))
+            faces += _icosphere((x - 0.09, g(0, z) + y, z), (0.11, 0.11, 0.06), col, rnd, 0, 0.0)
+            faces += _icosphere((x + 0.09, g(0, z) + y, z), (0.11, 0.11, 0.06), col, rnd, 0, 0.0)
+            faces += [((x - 0.2, g(0, z) + y - 0.02, z), (x + 0.2, g(0, z) + y - 0.02, z), (x, g(0, z) + y - 0.28, z), col)]
+    if "clover" in extras:
+        for _ in range(60):
+            z = rnd.uniform(-10, 6)
+            x = _path_x(z) + rnd.choice((-1, 1)) * rnd.uniform(0.6, 4)
+            for k in range(3):
+                a = k * 2.09
+                faces += _icosphere((x + math.cos(a) * 0.07, g(x, z) + 0.04, z + math.sin(a) * 0.07), (0.07, 0.015, 0.07),
+                                    _hex("#2e9e4f"), rnd, 0, 0.05)
     if "birds" in extras:
         for _ in range(7):
             x, y, z = rnd.uniform(-5, 5), rnd.uniform(4.0, 6.0), rnd.uniform(-9, 0)
@@ -569,6 +770,8 @@ def valley_mesh(trees: tuple[tuple[int, str, int], ...], season: str = "summer",
         side = 1 if slot % 2 else -1
         x = _path_x(z) + side * (0.95 + random.Random(slot).uniform(0.0, 0.9))
         tree = tree_mesh(species, stage, season, island=False, detail=0)
+        tree = _tree_decor(tree, species, stage, tuple(e for e in extras if e in ("lights", "star", "red_lanterns")),
+                           random.Random(slot))
         faces += transform(tree, 0.62, (x, _ground(x, z) - 0.02, z))
     faces += _decor(extras, season, random.Random(f"decor-{season}"))
     return faces
@@ -578,12 +781,17 @@ def valley_mesh(trees: tuple[tuple[int, str, int], ...], season: str = "summer",
 def forest_png(trees: tuple[tuple[int, str, int], ...], angle: int = 0, width: int = 640, height: int = 400,
                season: str = "summer", extras: tuple[str, ...] = ()) -> bytes:
     top, horizon = SKIES.get(season, SKIES["summer"])
-    if "aurora" in extras:  # a green-violet night-ish sky for the long-streak reward
-        top, horizon = "#1d2b4f", "#4fc3a1"
+    celestial = "sun" if "sun" in extras else None
+    if "moon" in extras:  # Halloween night
+        top, horizon, celestial = (34, 24, 64), (240, 140, 70), "moon"
+    elif "lanterns_gold" in extras:  # New Year's Eve: a deep evening sky for the fireworks
+        top, horizon = (20, 30, 70), (120, 90, 160)
+    elif "aurora" in extras:  # a green-violet night-ish sky for the long-streak reward
+        top, horizon = (29, 43, 79), (79, 195, 161)
     return render(valley_mesh(trees, season, view_angle=angle, extras=extras), angle_deg=angle, size=width, height=height,
                   elevation_deg=VALLEY_CAM["elevation"], supersample=2, shadow=False, snow=season == "winter",
                   zoom=VALLEY_CAM["zoom"], center_y=VALLEY_CAM["center_y"], camera_dist=VALLEY_CAM["dist"],
-                  fog=(VALLEY_CAM["dist"] + 2, VALLEY_CAM["dist"] + 22, horizon), sky=(top, horizon))
+                  fog=(VALLEY_CAM["dist"] + 2, VALLEY_CAM["dist"] + 22, horizon), sky=(top, horizon), celestial=celestial)
 
 
 VALLEY_CAM = {"dist": 23.0, "elevation": 19.0, "zoom": 0.105, "center_y": 0.62}
