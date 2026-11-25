@@ -14,7 +14,7 @@ import flet.canvas as cv
 
 from ..core.garden import STAGES, TREE_DAY, growth_tips, stage_for
 from ..core.nutrition import MACROS, MICROS, fmt, micro_status
-from ..core.pacing import compute_pace, day_min, pace_summary, sleep_min, to_min
+from ..core.pacing import compute_pace, day_min, sleep_min, to_min
 from ..service import pretty_date, shift, today_key
 from . import add_food, motion
 from . import components as cx
@@ -191,6 +191,35 @@ def _pace_rows(app: "App", t, tot):
     return {r.key: r for r in rows}, ""
 
 
+def _join(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def coach_line(rows, water_fmt, next_meal: str, logged: bool) -> tuple[bool, str]:
+    """One plain, kind sentence about pace (on_track, text). Replaces the list of numbers it used to show."""
+    relevant = [r for r in rows if r.status != "early"]
+    if not logged:
+        return False, "Nothing logged yet today. Add what you've had so far to see how you're pacing."
+    if not relevant:
+        return True, "Early in the day. Your targets are set."
+    food_behind = [r for r in relevant if r.status == "behind" and r.unit != "ml"]
+    water = next((r for r in relevant if r.unit == "ml" and r.status == "behind"), None)
+    ahead = [r for r in relevant if r.status == "ahead" and not r.ahead_ok]
+    parts = []
+    if food_behind:
+        names = [r.label.lower() for r in food_behind]
+        catch = "snacks" if next_meal == "snacks" else next_meal
+        parts.append(f"A bit behind on {_join(names)} for this time of day. Your {catch} can catch you up")
+    if water:
+        parts.append(f"{'Also, d' if parts else 'D'}rink about {water_fmt(max(0, water.gap))} over the next few hours")
+    if ahead:
+        parts.append(f"Ahead on {_join([r.label.lower() for r in ahead])}, so go a little lighter on "
+                     f"{'it' if len(ahead) == 1 else 'them'} later")
+    if not parts:
+        return True, "Right on pace. Nice work."
+    return False, ". ".join(parts) + "."
+
+
 def _summary(app: "App", t, tot) -> ft.Control:
     total = tot.total
     pace, early_msg = _pace_rows(app, t, tot)
@@ -221,7 +250,7 @@ def _summary(app: "App", t, tot) -> ft.Control:
 
     # One coaching line instead of a second table of bars.
     if pace:
-        on, text = pace_summary(list(pace.values()), app.svc.water_fmt)
+        on, text = coach_line(list(pace.values()), app.svc.water_fmt, app.current_meal(), total["kcal"] > 0)
         coach = cx.note(text, "good" if on else "info", icon=ft.Icons.CHECK_CIRCLE_OUTLINE if on else ft.Icons.TIMER_OUTLINED)
     elif early_msg:
         coach = cx.note(early_msg, "info", icon=ft.Icons.WB_TWILIGHT)
@@ -306,7 +335,11 @@ def _tree_card(app: "App") -> ft.Control | None:
                                                                     "each covers one missed day"))
         info.append(ft.Row(pills, spacing=6, wrap=True, run_spacing=6))
     sky = ft.LinearGradient(begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER, colors=th.SKY[app.dark])
-    items: list[ft.Control] = [ft.Row([ft.Container(tree.control, width=140), ft.Column(info, spacing=8, expand=True)],
+    from . import ambient
+    # the seasonal effect plays over the tree only, so it never crosses the text beside it
+    tree_box = ft.Container(ft.Stack([tree.control, ambient.layer(app, theme.ambient, 6)], width=140, height=150),
+                            width=140)
+    items: list[ft.Control] = [ft.Row([tree_box, ft.Column(info, spacing=8, expand=True)],
                                       spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)]
     if is_today and svc.has_log(key):  # tips only once there's a day to build on
         scheduled, taken = svc.dose_counts(key)
@@ -316,9 +349,7 @@ def _tree_card(app: "App") -> ft.Control | None:
         for tip in tips:
             items.append(ft.Row([th.chip(f"+{round(tip.gain)}", th.ACCENT), ft.Text(tip.text, size=th.T.LABEL, expand=True)],
                                 spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
-    from . import ambient
-    return th.card(ft.Stack([ft.Column(items, spacing=8, tight=True), ambient.layer(app, theme.ambient, 8)]),
-                   gradient=sky, padding=14, spacing=8)
+    return th.card(*items, gradient=sky, padding=14, spacing=8)
 
 
 # ---------- meals ----------
@@ -450,6 +481,10 @@ def _micros(app: "App", t, tot) -> ft.Control:
     covered = sum(1 for _, _, pct, _ in scored if pct >= 1)
     over = [r for r in rows if r[3] == "over"]
     low = sorted([r for r in scored if r[2] < 1], key=lambda r: r[2])[:3]
+    if not any(tot.total[m.key] for m, _, _, _ in rows):  # nothing eaten or taken yet: no wall of 0% bars
+        return th.card(th.heading("Vitamins & minerals", icon=ft.Icons.SPA_OUTLINED),
+                       th.muted("Log food or tick off a supplement and your vitamins and minerals show up here, with "
+                                "foods to fill any gaps.", th.T.LABEL), spacing=10)
     gaps = {g.micro.key: g for g in app.svc.gaps(app.date, 3)}
 
     items: list[ft.Control] = []
@@ -498,10 +533,14 @@ def _water(app: "App", t, tot) -> ft.Control:
         ft.Container(bgcolor=ft.Colors.with_opacity(0.10, th.MACRO_COLORS["water"]), border_radius=16,
                      left=0, right=0, top=0, bottom=0),
         level,
-        ft.Container(ft.Column([th.display(app.svc.water_fmt(total), 24),
-                                th.muted(f"of {app.svc.water_fmt(target)} · {round(pct * 100)}%", th.T.CAPTION)],
-                               spacing=0, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                     alignment=ft.Alignment.TOP_CENTER, padding=ft.Padding.only(top=12), left=0, right=0, top=0, bottom=0),
+        # the numbers sit on a soft pill so they stay readable as the water rises behind them
+        ft.Container(ft.Container(ft.Column([th.display(app.svc.water_fmt(total), 24),
+                                             th.muted(f"of {app.svc.water_fmt(target)} · {round(pct * 100)}%",
+                                                      th.T.CAPTION)],
+                                            spacing=0, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                                  bgcolor=ft.Colors.with_opacity(0.78, ft.Colors.SURFACE_CONTAINER_LOWEST),
+                                  border_radius=th.R.MD, padding=ft.Padding.symmetric(horizontal=14, vertical=4)),
+                     alignment=ft.Alignment.TOP_CENTER, padding=ft.Padding.only(top=10), left=0, right=0, top=0, bottom=0),
     ], height=glass_h)
     unit = "oz" if imperial else "ml"
     buttons = [ft.FilledTonalButton(f"+{lbl}", on_click=lambda _, m=ml, lb=f"{lbl} {unit}": add(m, lb), expand=True,
@@ -559,15 +598,28 @@ def _supp_checklist(app: "App") -> ft.Control:
             *([th.chip("Due", "#e08a2b")] if due else [th.muted("Taken", th.T.CAPTION)] if done else []),
         ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             padding=ft.Padding.symmetric(horizontal=6, vertical=8), border_radius=th.R.MD, ink=True,
-            on_click=lambda _, s=s, t=time: toggle(s, t), tooltip="Mark taken" if not done else "Mark not taken"))
+            on_click=lambda _, s=s, t=time: toggle(s, t)))
     done_count = sum(1 for s, t in doses if (s.id, t) in taken)
     if not doses:
         return th.card(th.heading("Supplements", icon=ft.Icons.MEDICATION),
                        cx.empty_state(ft.Icons.MEDICATION_OUTLINED, "Add what you take and it counts toward your "
                                       "vitamins and minerals, with reminders at the right time.",
                                       ft.FilledTonalButton("Add your stack", icon=ft.Icons.ADD, on_click=lambda _: app.go("supps"))))
+    due_now = [(s, t) for s, t in doses if is_today and (s.id, t) not in taken and t <= now]
+
+    def take_all(_):
+        motion.haptic("light")
+        for s, t in due_now:
+            app.store.mark_dose(app.date, s, t)
+        app.refresh("supps", "tree", "micros")
+        app.toast(f"Marked {len(due_now)} doses as taken",
+                  undo=lambda: [app.store.toggle_dose(key, s, t) for s, t in due_now])
+
+    key = app.date
+    take_all = ft.TextButton(f"Take all {len(due_now)} due", icon=ft.Icons.DONE_ALL, on_click=take_all) \
+        if len(due_now) >= 2 else None
     return th.card(
-        th.heading("Supplements", f"{done_count} of {len(doses)} taken", icon=ft.Icons.MEDICATION),
+        th.heading("Supplements", take_all or f"{done_count} of {len(doses)} taken", icon=ft.Icons.MEDICATION),
         th.bar(done_count / len(doses), th.ACCENT, height=6, key=f"supps:{app.date}"),
         ft.Column(rows, spacing=0), spacing=6)
 
@@ -595,7 +647,8 @@ def _weigh_in(app: "App") -> ft.Control:
         app.store.set("weighin_skip", app.date)
         app.render()
 
-    return th.card(th.heading("Morning weigh-in", ft.TextButton("Not today", on_click=skip),
+    title = "Morning weigh-in" if datetime.now().hour < 12 else "Weigh-in"
+    return th.card(th.heading(title, ft.TextButton("Not today", on_click=skip),
                               icon=ft.Icons.MONITOR_WEIGHT_OUTLINED),
                    th.muted("A few weigh-ins a week let Sapling learn your real daily burn.", th.T.CAPTION),
                    ft.Row([field, ft.FilledTonalButton("Log", on_click=save)], spacing=8), spacing=10)

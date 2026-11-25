@@ -201,7 +201,7 @@ def _micro_card(s) -> ft.Control:
     low = [MICRO_BY_KEY[k].label for k in s.consistently_low]
     note = cx.note(f"Often low: {', '.join(low)}. Today's Vitamins & minerals card suggests foods that fill these.", "info") \
         if low else cx.note("Nothing is consistently low. Great variety.", "good")
-    return th.card(th.heading("Vitamins & minerals", f"{covered} of {len(rows)} covered on average", icon=ft.Icons.SPA_OUTLINED),
+    return th.card(th.heading("Vitamins & minerals", f"{covered} of {len(rows)} met", icon=ft.Icons.SPA_OUTLINED),
                    note, ft.ResponsiveRow(rows, spacing=16, run_spacing=10))
 
 

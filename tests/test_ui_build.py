@@ -270,3 +270,18 @@ def test_clash_fix_time_always_moves():
     assert supps.clash_fix_time("10:00", ["10:00"]) == "13:00"
     assert supps.clash_fix_time("21:00", ["21:00"]) == "18:00"      # used to 'move' to 21:00 again
     assert supps.clash_fix_time("10:00", ["10:00", "13:00"]) == "07:00"
+
+
+def test_coach_line_is_plain_and_kind():
+    from types import SimpleNamespace as R
+    def row(label, unit, status, gap=0, ahead_ok=False):
+        return R(label=label, unit=unit, status=status, gap=gap, ahead_ok=ahead_ok)
+    fmt_w = lambda v: f"{v / 1000:.1f} L"  # noqa: E731
+    on, text = today.coach_line([row("Calories", "kcal", "on")], fmt_w, "dinner", False)
+    assert not on and text.startswith("Nothing logged yet")
+    on, text = today.coach_line([row("Calories", "kcal", "behind"), row("Carbs", "g", "behind"),
+                                 row("Water", "ml", "behind", 1500)], fmt_w, "dinner", True)
+    assert text == ("A bit behind on calories and carbs for this time of day. Your dinner can catch you up. "
+                    "Also, drink about 1.5 L over the next few hours.")
+    assert "~" not in text
+    assert today.coach_line([row("Protein", "g", "on")], fmt_w, "lunch", True) == (True, "Right on pace. Nice work.")

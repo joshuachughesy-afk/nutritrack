@@ -141,10 +141,11 @@ def day_chips(selected: set[int], on_change: Callable[[set[int]], None] | None =
 
 
 def time_field(page_getter: Callable[[], ft.Page], value: str, label: str = "Time", on_change: Callable[[str], None] | None = None,
-               width: int | None = 120) -> ft.TextField:
-    """A read-only field that opens the system time picker. `.value` stays "HH:MM"."""
+               width: int | None = 120, icon: bool = True) -> ft.TextField:
+    """A read-only field that opens the system time picker. `.value` stays "HH:MM". Leave out the clock icon where
+    several fields share a row, so "12:30" never gets cut off."""
     field = ft.TextField(label=label, value=value, read_only=True, dense=True, border_radius=12, width=width,
-                         suffix_icon=ft.Icons.SCHEDULE)
+                         suffix_icon=ft.Icons.SCHEDULE if icon else None)
 
     state = {"open": False}
 

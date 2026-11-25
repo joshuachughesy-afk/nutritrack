@@ -278,7 +278,7 @@ def _reminders(app: "App", p: Profile) -> list[ft.Control]:
     getp = lambda: app.page  # noqa: E731
     wake, sleep = cx.time_field(getp, sched["wake"], "Wake up", width=None), cx.time_field(getp, sched["sleep"], "Bedtime", width=None)
     wake.expand = sleep.expand = True
-    meals = {k: cx.time_field(getp, sched[k], k.title(), width=None) for k in ("breakfast", "lunch", "dinner")}
+    meals = {k: cx.time_field(getp, sched[k], k.title(), width=None, icon=False) for k in ("breakfast", "lunch", "dinner")}
     for f in meals.values():
         f.expand = True
     enabled_ref, supps_ref, water_ref = [], [], []
@@ -326,16 +326,25 @@ def _reminders(app: "App", p: Profile) -> list[ft.Control]:
             return
         _saved(app, "Reminders on" if on else "Reminders saved")
 
+    # The detailed options only matter with reminders on: dim them (and ignore taps) while it's off.
+    options = ft.Container(ft.Column([
+        cx.toggle_row("Supplements", rs["supplements"], sub="At each dose's time, with a Mark taken button.",
+                      ref_out=supps_ref),
+        cx.toggle_row("Water", rs["water"], sub="Only when you're behind.", ref_out=water_ref), ft.Row([every]),
+        th.label("Daily check-ins"),
+        th.muted("How you're pacing on food and water. The evening one suggests foods for any gaps.", th.T.CAPTION),
+        check_row], spacing=12, tight=True),
+        opacity=1 if rs["enabled"] else 0.4, ignore_interactions=not rs["enabled"],
+        animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_OUT))
+
+    def dim(on: bool) -> None:
+        options.opacity, options.ignore_interactions = (1 if on else 0.4), not on
+        options.update()
+
     return [
-        th.card(cx.toggle_row("Send me reminders", rs["enabled"], ref_out=enabled_ref,
+        th.card(cx.toggle_row("Send me reminders", rs["enabled"], ref_out=enabled_ref, on_change=dim,
                               sub="Never more than you ask for. " + how),
-                ft.Divider(height=4),
-                cx.toggle_row("Supplements", rs["supplements"], sub="At each dose's time, with a Mark taken button.",
-                              ref_out=supps_ref),
-                cx.toggle_row("Water", rs["water"], sub="Only when you're behind.", ref_out=water_ref), ft.Row([every]),
-                th.label("Daily check-ins"),
-                th.muted("How you're pacing on food and water. The evening one suggests foods for any gaps.", th.T.CAPTION),
-                check_row, spacing=12),
+                ft.Divider(height=4), options, spacing=12),
         th.card(th.heading("Your day", icon=ft.Icons.SCHEDULE),
                 th.muted("Meal times set your pace: half an hour after lunch you'd expect a bit over half the day's food.",
                          th.T.CAPTION),
