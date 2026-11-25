@@ -99,9 +99,9 @@ def _food_editor(app: "App") -> list[ft.Control]:
         app.confirm(f"Delete {f0.name}?", "Things you've already logged keep their values.",
                     lambda: (app.store.delete_custom_food(f0.id), close()))
 
-    actions: list[ft.Control] = [ft.FilledButton("Save food", icon=ft.Icons.CHECK, on_click=save)]
+    actions: list[ft.Control] = [ft.FilledButton("Save food", icon=ft.Icons.CHECK_ROUNDED, on_click=save)]
     if f0:
-        actions.append(ft.TextButton("Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=delete,
+        actions.append(ft.TextButton("Delete", icon=ft.Icons.DELETE_OUTLINE_ROUNDED, on_click=delete,
                                      style=ft.ButtonStyle(color=th.ink(th.STATUS_COLORS["over"]))))
     return [cx.back_header("New food" if not f0 else "Edit food", close, subtitle="Copy the values from the label, per serving"),
             th.card(ft.Row([name]), ft.Row([serving_label, serving_g], spacing=10),
@@ -152,12 +152,12 @@ def _my_foods(app: "App") -> list[ft.Control]:
         lst.controls = [_food_row(app, f, lambda _, f=f: open_food(f)) for f in hits] or \
             [th.muted(f"Nothing matches “{q}”.", th.T.LABEL)]
 
-    new_btn = ft.FilledButton("New food", icon=ft.Icons.ADD, on_click=new)
+    new_btn = ft.FilledButton("New food", icon=ft.Icons.ADD_ROUNDED, on_click=new)
     if not mine:
-        return [th.card(cx.empty_state(ft.Icons.RESTAURANT_MENU, "Foods you create show up here and in Add food. Foods you "
+        return [th.card(cx.empty_state(ft.Icons.RESTAURANT_MENU_ROUNDED, "Foods you create show up here and in Add food. Foods you "
                                        "pick from online search are saved here too, so they work offline.",
                                        new_btn, title="Your own foods"))]
-    search = ft.TextField(hint_text="Search", prefix_icon=ft.Icons.SEARCH, dense=True,
+    search = ft.TextField(hint_text="Search", prefix_icon=ft.Icons.SEARCH_ROUNDED, dense=True,
                           border_radius=12, on_change=lambda e: (fill(e.control.value), app.page.update()), expand=True)
     fill()
     return [ft.Row([search, new_btn], spacing=8), th.card(lst, padding=8, spacing=0)]
@@ -199,20 +199,20 @@ def _recipes(app: "App") -> list[ft.Control]:
                                th.muted(f"Makes {fmt(r.servings)} · {len(r.ingredients)} ingredients · "
                                         f"{round(r.total_grams / max(r.servings, 0.01))} g a serving", th.T.CAPTION)],
                               spacing=2, expand=True),
-                    ft.PopupMenuButton(icon=ft.Icons.MORE_VERT, tooltip="More", items=[
+                    ft.PopupMenuButton(icon=ft.Icons.MORE_VERT_ROUNDED, tooltip="More", items=[
                         ft.PopupMenuItem(content=ft.Text("Edit"), icon=ft.Icons.EDIT_OUTLINED, on_click=lambda _, r=r: edit(r)),
-                        ft.PopupMenuItem(content=ft.Text("Delete"), icon=ft.Icons.DELETE_OUTLINE,
+                        ft.PopupMenuItem(content=ft.Text("Delete"), icon=ft.Icons.DELETE_OUTLINE_ROUNDED,
                                          on_click=lambda _, r=r: delete(r))])],
                    vertical_alignment=ft.CrossAxisAlignment.START),
             th.label("Per serving"), _per_serving_row(n),
-            ft.FilledTonalButton("Log a serving", icon=ft.Icons.ADD, on_click=lambda _, r=r: log(r)), spacing=8))
+            ft.FilledTonalButton("Log a serving", icon=ft.Icons.ADD_ROUNDED, on_click=lambda _, r=r: log(r)), spacing=8))
     if not recipes:
-        return [th.card(cx.empty_state(ft.Icons.MENU_BOOK, "Add ingredients and how many servings it makes. We'll do the "
+        return [th.card(cx.empty_state(ft.Icons.MENU_BOOK_ROUNDED, "Add ingredients and how many servings it makes. We'll do the "
                                        "maths, and the recipe shows up in Add food.",
-                                       ft.FilledButton("New recipe", icon=ft.Icons.ADD, on_click=new),
+                                       ft.FilledButton("New recipe", icon=ft.Icons.ADD_ROUNDED, on_click=new),
                                        title="Batch-cook once, log in one tap"))]
     return [ft.Row([th.muted(f"{len(recipes)} recipe{'s' if len(recipes) != 1 else ''}", th.T.LABEL, expand=True),
-                    ft.FilledButton("New recipe", icon=ft.Icons.ADD, on_click=new)]), *cards]
+                    ft.FilledButton("New recipe", icon=ft.Icons.ADD_ROUNDED, on_click=new)]), *cards]
 
 
 def _recipe_editor(app: "App") -> list[ft.Control]:
@@ -272,7 +272,7 @@ def _recipe_editor(app: "App") -> list[ft.Control]:
                             for f in hits]
         app.page.update()
 
-    search = ft.TextField(hint_text="Add an ingredient…", prefix_icon=ft.Icons.SEARCH, dense=True, border_radius=12, expand=True,
+    search = ft.TextField(hint_text="Add an ingredient…", prefix_icon=ft.Icons.SEARCH_ROUNDED, dense=True, border_radius=12, expand=True,
                           on_change=find)
     servings.on_change = lambda _: (refresh_preview(), app.page.update())
 
@@ -298,7 +298,7 @@ def _recipe_editor(app: "App") -> list[ft.Control]:
             th.card(ft.Row([name]), ft.Row([servings]), th.label("Ingredients"), ingredients, ft.Row([search]), results,
                     spacing=10),
             th.card(preview, spacing=8),
-            ft.Row([ft.FilledButton("Save recipe", icon=ft.Icons.CHECK, on_click=save, expand=True)])]
+            ft.Row([ft.FilledButton("Save recipe", icon=ft.Icons.CHECK_ROUNDED, on_click=save, expand=True)])]
 
 
 # ---------- saved meals ----------
@@ -322,17 +322,17 @@ def _plans(app: "App") -> list[ft.Control]:
         names = ", ".join(i.name.split(",")[0] for i in plan.items[:4]) + ("…" if len(plan.items) > 4 else "")
         if plan.kind == "meal":
             log_btn = ft.PopupMenuButton(
-                content=ft.FilledTonalButton(f"Log to {when}", icon=ft.Icons.ADD, on_click=None),
+                content=ft.FilledTonalButton(f"Log to {when}", icon=ft.Icons.ADD_ROUNDED, on_click=None),
                 tooltip="Choose a meal",
                 items=[ft.PopupMenuItem(content=ft.Text(f"As {lbl.lower()}"), on_click=lambda _, m=m, p=plan: log(p, m))
                        for m, lbl in MEAL_LABELS.items()])
         else:
-            log_btn = ft.FilledTonalButton(f"Log the whole day to {when}", icon=ft.Icons.ADD, on_click=lambda _, p=plan: log(p))
+            log_btn = ft.FilledTonalButton(f"Log the whole day to {when}", icon=ft.Icons.ADD_ROUNDED, on_click=lambda _, p=plan: log(p))
         cards.append(th.card(
             ft.Row([ft.Column([ft.Text(plan.name, size=th.T.BODY + 1, font_family=th.FONT_BOLD),
                                th.muted(names, th.T.CAPTION, max_lines=2)], spacing=2, expand=True),
                     th.chip("Meal" if plan.kind == "meal" else "Whole day", th.ACCENT if plan.kind == "meal" else th.SHIELD),
-                    ft.IconButton(ft.Icons.DELETE_OUTLINE, tooltip="Delete", on_click=lambda _, p=plan: delete(p))],
+                    ft.IconButton(ft.Icons.DELETE_OUTLINE_ROUNDED, tooltip="Delete", on_click=lambda _, p=plan: delete(p))],
                    vertical_alignment=ft.CrossAxisAlignment.START),
             th.muted(f"{len(plan.items)} items · {fmt(tot['kcal'])} kcal · P {round(tot['protein'])} · "
                      f"C {round(tot['carbs'])} · F {round(tot['fat'])} g", th.T.CAPTION),

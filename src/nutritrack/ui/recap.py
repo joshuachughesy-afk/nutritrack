@@ -45,10 +45,10 @@ def card(app: "App") -> ft.Control:
                     if st is not None else ft.Container(width=40, height=40) for d, st in rc.trees],
                    spacing=2, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
     return th.card(
-        th.heading("Your week in the forest", ft.IconButton(ft.Icons.CLOSE, icon_size=18, tooltip="Dismiss",
-                                                           on_click=dismiss), icon=ft.Icons.AUTO_STORIES),
+        th.heading("Your week in the forest", ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=18, tooltip="Dismiss",
+                                                           on_click=dismiss), icon=ft.Icons.AUTO_STORIES_ROUNDED),
         trees, ft.Text(rc.headline, size=th.T.BODY, font_family=th.FONT_SEMI),
-        ft.Row([ft.FilledTonalButton("See your week", icon=ft.Icons.ARROW_FORWARD, on_click=lambda _: open_sheet(app))]),
+        ft.Row([ft.FilledTonalButton("See your week", icon=ft.Icons.ARROW_FORWARD_ROUNDED, on_click=lambda _: open_sheet(app))]),
         spacing=10)
 
 
@@ -87,16 +87,16 @@ def open_sheet(app: "App") -> None:
                              spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
                    for d, st in rc.trees], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
     span = f"{date.fromisoformat(rc.start).strftime('%d %b')} – {date.fromisoformat(rc.end).strftime('%d %b')}"
-    tiles = ft.Row([cx.stat_tile("Full trees", f"{rc.full_trees}", "of 7 days", icon=ft.Icons.PARK),
-                    cx.stat_tile("Logged", f"{rc.days_logged}", "days", icon=ft.Icons.EDIT_NOTE)], spacing=8)
+    tiles = ft.Row([cx.stat_tile("Full trees", f"{rc.full_trees}", "of 7 days", icon=ft.Icons.PARK_ROUNDED),
+                    cx.stat_tile("Logged", f"{rc.days_logged}", "days", icon=ft.Icons.EDIT_NOTE_ROUNDED)], spacing=8)
     body = ft.Column([
         th.muted(span.upper(), th.T.CAPTION, font_family=th.FONT_SEMI),
         ft.Text(rc.headline, size=th.T.TITLE, font_family=th.FONT_BOLD),
         days, tiles,
-        *[ft.Row([ft.Icon(ft.Icons.CIRCLE, size=8, color=th.ACCENT), ft.Text(line, size=th.T.BODY - 1, expand=True)],
+        *[ft.Row([ft.Icon(ft.Icons.CIRCLE_ROUNDED, size=8, color=th.ACCENT), ft.Text(line, size=th.T.BODY - 1, expand=True)],
                  vertical_alignment=ft.CrossAxisAlignment.START) for line in rc.lines],
-        ft.Row([ft.FilledButton("Share", icon=ft.Icons.IOS_SHARE, on_click=share),
-                ft.OutlinedButton("Save image", icon=ft.Icons.DOWNLOAD, on_click=save)], spacing=8),
+        ft.Row([ft.FilledButton("Share", icon=ft.Icons.IOS_SHARE_ROUNDED, on_click=share),
+                ft.OutlinedButton("Save image", icon=ft.Icons.DOWNLOAD_ROUNDED, on_click=save)], spacing=8),
     ], spacing=12, tight=True, scroll=ft.ScrollMode.AUTO)
     app.page.show_dialog(ft.BottomSheet(content=ft.Container(body, padding=ft.Padding.only(left=20, right=20, bottom=28)),
                                         show_drag_handle=True, scrollable=True))

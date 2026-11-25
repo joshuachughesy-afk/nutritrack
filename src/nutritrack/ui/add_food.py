@@ -37,10 +37,10 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
         app.page.pop_dialog()
 
     def header(title: str, back: bool = False) -> ft.Control:
-        left = [ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: picker(), tooltip="Back to search")] if back else []
+        left = [ft.IconButton(ft.Icons.ARROW_BACK_ROUNDED, on_click=lambda _: picker(), tooltip="Back to search")] if back else []
         return ft.Row(left + [ft.Text(title, size=th.T.HEADLINE, font_family=th.FONT_BOLD, expand=True, max_lines=2,
                                       overflow=ft.TextOverflow.ELLIPSIS),
-                              ft.IconButton(ft.Icons.CLOSE, on_click=lambda _: close(), tooltip="Close")])
+                              ft.IconButton(ft.Icons.CLOSE_ROUNDED, on_click=lambda _: close(), tooltip="Close")])
 
     def logged(name: str, entry_id: str, target_meal: str) -> None:
         """Every add confirms itself and can be undone."""
@@ -78,7 +78,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
             ft.Column([ft.Text(f.name, size=th.T.BODY - 1, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                        ft.Row([th.muted(f"{tidy_label(label)} · {kcal} kcal", th.T.CAPTION), *([b] if b else [])], spacing=6, wrap=True)],
                       spacing=2, expand=True),
-            *([ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=th.ACCENT, tooltip=f"Log {label} now", on_click=quick_log)]
+            *([ft.IconButton(ft.Icons.ADD_CIRCLE_ROUNDED, icon_color=th.ACCENT, tooltip=f"Log {label} now", on_click=quick_log)]
               if last else [ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, color=th.MUTED, size=18)]),
         ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             padding=ft.Padding.symmetric(horizontal=4, vertical=8), border_radius=th.R.SM, ink=True,
@@ -147,7 +147,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
             if meal_plans:
                 items.append(th.label("Saved meals"))
                 items.append(ft.Row([ft.Chip(label=ft.Text(f"{p.name} · {fmt(p.totals()['kcal'])} kcal", size=th.T.CAPTION),
-                                             leading=ft.Icon(ft.Icons.BOOKMARK, size=16),
+                                             leading=ft.Icon(ft.Icons.BOOKMARK_ROUNDED, size=16),
                                              on_click=lambda _, p=p: log_plan(p)) for p in meal_plans[:8]],
                                     wrap=True, spacing=6, run_spacing=6))
             recents = [f for f in (app.svc.find_food(i) for i in app.store.recents()) if f]
@@ -179,15 +179,15 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
             fill_results(e.control.value)
             app.page.update()
 
-        search = ft.TextField(hint_text="Search foods and brands", prefix_icon=ft.Icons.SEARCH, expand=True,
+        search = ft.TextField(hint_text="Search foods and brands", prefix_icon=ft.Icons.SEARCH_ROUNDED, expand=True,
                               autofocus=True, dense=True, border_radius=12, on_change=on_change,
                               on_submit=lambda _: app.page.run_task(search_online, "off"), value=query["q"])
         fill_results(query["q"])
         content.controls = [
             header(f"Add to {MEAL_LABELS[meal]}{day_note}"), ft.Row([search]),
-            ft.Row([ft.FilledTonalButton("Describe it", icon=ft.Icons.EDIT_NOTE, on_click=lambda _: describe()),
-                    ft.FilledTonalButton("Scan", icon=ft.Icons.QR_CODE_SCANNER, on_click=lambda _: scan()),
-                    ft.TextButton("Quick add", icon=ft.Icons.BOLT, on_click=lambda _: quick()),
+            ft.Row([ft.FilledTonalButton("Describe it", icon=ft.Icons.EDIT_NOTE_ROUNDED, on_click=lambda _: describe()),
+                    ft.FilledTonalButton("Scan", icon=ft.Icons.QR_CODE_SCANNER_ROUNDED, on_click=lambda _: scan()),
+                    ft.TextButton("Quick add", icon=ft.Icons.BOLT_ROUNDED, on_click=lambda _: quick()),
                     *([] if photo else [ft.TextButton("Photo for later", icon=ft.Icons.PHOTO_CAMERA_OUTLINED,
                                                       on_click=lambda _: app.page.run_task(snap))])],
                    wrap=True, spacing=4),
@@ -222,7 +222,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
         box = ft.TextField(hint_text="e.g. 2 eggs, 2 slices of toast and a banana", multiline=True, min_lines=2,
                            max_lines=4, autofocus=True, border_radius=12, value=query.get("described", ""), expand=True)
         preview = ft.Column(spacing=4)
-        log_btn = ft.FilledButton("Log all", icon=ft.Icons.CHECK, disabled=True, expand=True)
+        log_btn = ft.FilledButton("Log all", icon=ft.Icons.CHECK_ROUNDED, disabled=True, expand=True)
         state: dict = {"items": []}
 
         def refresh(_=None):
@@ -234,7 +234,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
             for it in items:
                 if it.food is None:
                     rows.append(ft.Container(ft.Row([
-                        ft.Icon(ft.Icons.HELP_OUTLINE, size=18, color="#e08a2b"),
+                        ft.Icon(ft.Icons.HELP_OUTLINE_ROUNDED, size=18, color="#e08a2b"),
                         ft.Text(f"“{it.text}”: not found", size=th.T.LABEL, expand=True),
                         ft.TextButton("Search", on_click=lambda _, q=it.text: (query.update(q=q), picker()))]),
                         padding=ft.Padding.symmetric(horizontal=6)))
@@ -242,13 +242,13 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
                 kcal = it.food.per100["kcal"] * it.grams / 100
                 total += kcal
                 rows.append(ft.Container(ft.Row([
-                    ft.Icon(ft.Icons.CHECK_CIRCLE if it.confident else ft.Icons.INFO_OUTLINE, size=18,
+                    ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED if it.confident else ft.Icons.INFO_OUTLINE_ROUNDED, size=18,
                             color=th.ACCENT if it.confident else "#e08a2b"),
                     ft.Column([ft.Text(it.food.name, size=th.T.LABEL + 1, font_family=th.FONT_SEMI, max_lines=1,
                                        overflow=ft.TextOverflow.ELLIPSIS),
                                th.muted(f"{it.label} · {fmt(kcal)} kcal" + ("" if it.confident else " · best guess"),
                                         th.T.CAPTION)], spacing=0, expand=True),
-                    ft.IconButton(ft.Icons.CLOSE, icon_size=18, tooltip="Leave this one out",
+                    ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=18, tooltip="Leave this one out",
                                   on_click=lambda _, t=it.text: drop(t)),
                 ], spacing=8), padding=ft.Padding.symmetric(horizontal=6, vertical=2)))
             found = [it for it in items if it.food]
@@ -349,14 +349,14 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
                     app.page.update()
                     await decoded(await cam.take_picture())
 
-                camera_box.controls.append(ft.FilledButton("Capture", icon=ft.Icons.CAMERA_ALT, on_click=capture))
+                camera_box.controls.append(ft.FilledButton("Capture", icon=ft.Icons.CAMERA_ALT_ROUNDED, on_click=capture))
             except Exception:
                 camera_box.controls = []
             app.page.update()
 
-        buttons = [ft.FilledButton("Look up", icon=ft.Icons.SEARCH, on_click=look_up)]
+        buttons = [ft.FilledButton("Look up", icon=ft.Icons.SEARCH_ROUNDED, on_click=look_up)]
         if bc.available():
-            buttons.append(ft.OutlinedButton("Use a photo", icon=ft.Icons.IMAGE, on_click=from_photo))
+            buttons.append(ft.OutlinedButton("Use a photo", icon=ft.Icons.IMAGE_ROUNDED, on_click=from_photo))
         code.on_submit = look_up
         content.controls = [header("Scan barcode", back=True), camera_box, ft.Row([code]), ft.Row(buttons, wrap=True),
                             scan_status]
@@ -437,13 +437,13 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
         unit.on_select = update_preview
         if entry:
             content.controls = [header(f.name), ft.Row([qty, unit], spacing=10), meal_dd, preview,
-                                ft.Row([ft.FilledButton("Save changes", icon=ft.Icons.CHECK, on_click=add, expand=True),
-                                        ft.OutlinedButton("Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=lambda _: delete(entry))])]
+                                ft.Row([ft.FilledButton("Save changes", icon=ft.Icons.CHECK_ROUNDED, on_click=add, expand=True),
+                                        ft.OutlinedButton("Delete", icon=ft.Icons.DELETE_OUTLINE_ROUNDED, on_click=lambda _: delete(entry))])]
         else:
             b = badge(f)
             content.controls = [header(f.name, back=True), *([ft.Row([b])] if b else []), ft.Row([qty, unit], spacing=10),
                                 steps, preview,
-                                ft.FilledButton("Add", icon=ft.Icons.CHECK, on_click=add, width=float("inf"))]
+                                ft.FilledButton("Add", icon=ft.Icons.CHECK_ROUNDED, on_click=add, width=float("inf"))]
         update_preview()
 
     def delete(entry: dict) -> None:
@@ -484,10 +484,10 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
                             th.muted("Good for eating out: a rough number beats no number. Quick adds don't count vitamins and minerals.",
                                      th.T.CAPTION)]
         if entry:
-            content.controls.append(ft.Row([ft.FilledButton("Save changes", icon=ft.Icons.CHECK, on_click=add, expand=True),
-                                            ft.OutlinedButton("Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=lambda _: delete(entry))]))
+            content.controls.append(ft.Row([ft.FilledButton("Save changes", icon=ft.Icons.CHECK_ROUNDED, on_click=add, expand=True),
+                                            ft.OutlinedButton("Delete", icon=ft.Icons.DELETE_OUTLINE_ROUNDED, on_click=lambda _: delete(entry))]))
         else:
-            content.controls.append(ft.FilledButton("Add", icon=ft.Icons.CHECK, on_click=add, width=float("inf")))
+            content.controls.append(ft.FilledButton("Add", icon=ft.Icons.CHECK_ROUNDED, on_click=add, width=float("inf")))
         app.page.update()
 
     if edit:

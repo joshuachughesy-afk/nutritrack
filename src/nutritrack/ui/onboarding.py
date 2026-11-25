@@ -22,16 +22,16 @@ if TYPE_CHECKING:
 
 STEPS = ["welcome", "training", "week", "you", "goal", "plan", "seed"]
 
-TRAINING_ICONS = {"hybrid": ft.Icons.DIRECTIONS_RUN, "strength": ft.Icons.FITNESS_CENTER, "hypertrophy": ft.Icons.SPORTS_GYMNASTICS,
-                  "hiit": ft.Icons.BOLT, "endurance": ft.Icons.DIRECTIONS_BIKE, "ultra": ft.Icons.TERRAIN,
-                  "team": ft.Icons.SPORTS_SOCCER, "combat": ft.Icons.SPORTS_MMA, "general": ft.Icons.FAVORITE_BORDER,
-                  "low": ft.Icons.SELF_IMPROVEMENT}
+TRAINING_ICONS = {"hybrid": ft.Icons.DIRECTIONS_RUN_ROUNDED, "strength": ft.Icons.FITNESS_CENTER_ROUNDED, "hypertrophy": ft.Icons.SPORTS_GYMNASTICS_ROUNDED,
+                  "hiit": ft.Icons.BOLT_ROUNDED, "endurance": ft.Icons.DIRECTIONS_BIKE_ROUNDED, "ultra": ft.Icons.TERRAIN_ROUNDED,
+                  "team": ft.Icons.SPORTS_SOCCER_ROUNDED, "combat": ft.Icons.SPORTS_MMA_ROUNDED, "general": ft.Icons.FAVORITE_BORDER_ROUNDED,
+                  "low": ft.Icons.SELF_IMPROVEMENT_ROUNDED}
 TRAINING_ORDER = ["hybrid", "strength", "endurance", "hiit", "hypertrophy", "team", "combat", "ultra", "general", "low"]
 LOAD_TO_ACTIVITY = {"low": "light", "moderate": "moderate", "high": "very", "peak": "extra"}
-GOAL_CARDS = [("lose", "Lose fat", "About 0.5 kg a week", ft.Icons.TRENDING_DOWN),
-              ("lose_slow", "Lose slowly", "About 0.25 kg a week, easier on training", ft.Icons.SOUTH_EAST),
-              ("maintain", "Maintain", "Fuel performance at your current weight", ft.Icons.TRENDING_FLAT),
-              ("gain_slow", "Build", "Lean gain, about 0.25 kg a week", ft.Icons.TRENDING_UP)]
+GOAL_CARDS = [("lose", "Lose fat", "About 0.5 kg a week", ft.Icons.TRENDING_DOWN_ROUNDED),
+              ("lose_slow", "Lose slowly", "About 0.25 kg a week, easier on training", ft.Icons.SOUTH_EAST_ROUNDED),
+              ("maintain", "Maintain", "Fuel performance at your current weight", ft.Icons.TRENDING_FLAT_ROUNDED),
+              ("gain_slow", "Build", "Lean gain, about 0.25 kg a week", ft.Icons.TRENDING_UP_ROUNDED)]
 
 
 def _answers(app: "App") -> dict:
@@ -88,7 +88,7 @@ def _option(icon, title: str, sub: str, selected: bool, on_click) -> ft.Control:
                      border_radius=th.R.MD, bgcolor=th.ACCENT if selected else ft.Colors.with_opacity(0.12, th.ACCENT)),
         ft.Column([ft.Text(title, size=th.T.BODY, font_family=th.FONT_SEMI),
                    th.muted(sub, th.T.CAPTION, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)], spacing=1, expand=True),
-        ft.Icon(ft.Icons.CHECK_CIRCLE if selected else ft.Icons.RADIO_BUTTON_UNCHECKED,
+        ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED if selected else ft.Icons.RADIO_BUTTON_UNCHECKED_ROUNDED,
                 color=th.ACCENT if selected else ft.Colors.OUTLINE_VARIANT),
     ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=12, border_radius=th.R.LG - 4, ink=True, on_click=on_click,
@@ -100,14 +100,14 @@ def _option(icon, title: str, sub: str, selected: bool, on_click) -> ft.Control:
 def _welcome(app: "App", a: dict) -> list[ft.Control]:
     tree = TreeView("oak", 4, size=240, season=app.svc.season())
     sky = ft.LinearGradient(begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER, colors=th.SKY[app.dark])
-    points = [(ft.Icons.BOLT, "Fuel tuned to how you train", "Carbs, protein and fat set for hybrid, strength or endurance."),
+    points = [(ft.Icons.BOLT_ROUNDED, "Fuel tuned to how you train", "Carbs, protein and fat set for hybrid, strength or endurance."),
               (ft.Icons.SPA_OUTLINED, "Every vitamin and mineral", "Food and supplements together, so you see real gaps."),
               (ft.Icons.PARK_OUTLINED, "Grow a forest", "Every good day grows a tree. Keep your streak, watch the valley fill."),
-              (ft.Icons.LOCK_OUTLINE, "Private by design", "No account, no ads. Your data stays on this device.")]
+              (ft.Icons.LOCK_OUTLINE_ROUNDED, "Private by design", "No account, no ads. Your data stays on this device.")]
     return [
         ft.Row([ft.Container(tree.control, gradient=sky, alignment=ft.Alignment.CENTER, expand=True,
                              border_radius=th.R.LG, padding=ft.Padding.only(top=12, bottom=4))]),
-        ft.Row([ft.Icon(ft.Icons.SPA, color=th.ACCENT, size=22),
+        ft.Row([ft.Image(src="logo.png", width=34, height=34),
                 ft.Text(APP_NAME, size=th.T.HEADLINE, font_family=th.FONT_BOLD, color=th.ACCENT)], spacing=6),
         ft.Text("Grow a forest by fuelling well.", size=th.T.DISPLAY, font_family=th.FONT_BOLD),
         th.muted("Calories, macros and every nutrient, tuned to how you train. Takes about a minute to set up.", th.T.BODY),
@@ -125,7 +125,7 @@ def _training(app: "App", a: dict) -> list[ft.Control]:
         a.setdefault("cycling", TRAINING[key].carb_first)
         _go(app, 2)
 
-    opts = [_option(TRAINING_ICONS.get(k, ft.Icons.FITNESS_CENTER), TRAINING[k].name, TRAINING[k].examples,
+    opts = [_option(TRAINING_ICONS.get(k, ft.Icons.FITNESS_CENTER_ROUNDED), TRAINING[k].name, TRAINING[k].examples,
                     a.get("training") == k, lambda _, k=k: pick(k)) for k in TRAINING_ORDER if k in TRAINING]
     return [_q("What are you training for?", "This sets how your food is split between carbs, protein and fat."), *opts]
 
@@ -239,19 +239,19 @@ def _plan(app: "App", a: dict) -> list[ft.Control]:
             th.display(f"{t.kcal:,}", th.T.TITLE + 4), th.muted("kcal", th.T.CAPTION),
             *[ft.Row([th.dot(th.MACRO_COLORS[k]), ft.Text(f"{getattr(t, k)} g {k}", size=th.T.LABEL)], spacing=6)
               for k in (["carbs", "protein", "fat"] if tr.carb_first else ["protein", "carbs", "fat"])],
-            ft.Row([ft.Icon(ft.Icons.WATER_DROP, size=14, color=th.MACRO_COLORS["water"]),
+            ft.Row([ft.Icon(ft.Icons.WATER_DROP_ROUNDED, size=14, color=th.MACRO_COLORS["water"]),
                     ft.Text(f"{water(t.water_ml)} water", size=th.T.LABEL)], spacing=6),
         ], spacing=4), expand=True, padding=14, border_radius=th.R.MD, bgcolor=ft.Colors.SURFACE_CONTAINER)
 
-    cols = [day_col("Training day", ft.Icons.FITNESS_CENTER, tt)]
+    cols = [day_col("Training day", ft.Icons.FITNESS_CENTER_ROUNDED, tt)]
     if tt.cycling or tt.kcal != rt.kcal:
-        cols.append(day_col("Rest day", ft.Icons.SELF_IMPROVEMENT, rt))
+        cols.append(day_col("Rest day", ft.Icons.SELF_IMPROVEMENT_ROUNDED, rt))
     why = (f"{tr.name}: carb-forward, to refill what your sessions burn." if tr.carb_first
            else f"{tr.name}: {tr.emphasis.lower()} split for your training.")
     notes = [cx.note(n, "warn") for n in tt.notes]
     return [_q("Your fuel plan", "Worked out from your answers. It adapts as you log and weigh in."),
             th.card(ft.Row(cols, spacing=10, vertical_alignment=ft.CrossAxisAlignment.START),
-                    cx.note(why, "info", icon=ft.Icons.BOLT), *notes,
+                    cx.note(why, "info", icon=ft.Icons.BOLT_ROUNDED), *notes,
                     th.muted("Plus daily targets for 14 vitamins and minerals.", th.T.CAPTION), spacing=12),
             _next_button("Looks good", lambda _: _go(app, 6)),
             ft.Row([ft.TextButton("Change my answers", on_click=lambda _: _go(app, 1))], alignment=ft.MainAxisAlignment.CENTER)]

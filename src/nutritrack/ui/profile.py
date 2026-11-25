@@ -19,13 +19,13 @@ if TYPE_CHECKING:
     from .app import App
 
 PAGES = {
-    "body": ("Body & goal", ft.Icons.ACCESSIBILITY_NEW),
-    "training": ("Training", ft.Icons.FITNESS_CENTER),
-    "targets": ("Your targets", ft.Icons.TRACK_CHANGES),
+    "body": ("Body & goal", ft.Icons.ACCESSIBILITY_NEW_ROUNDED),
+    "training": ("Training", ft.Icons.FITNESS_CENTER_ROUNDED),
+    "targets": ("Your targets", ft.Icons.TRACK_CHANGES_ROUNDED),
     "reminders": ("Reminders", ft.Icons.NOTIFICATIONS_OUTLINED),
     "appearance": ("Appearance", ft.Icons.PALETTE_OUTLINED),
-    "data": ("Backup & privacy", ft.Icons.LOCK_OUTLINE),
-    "help": ("Help & feedback", ft.Icons.HELP_OUTLINE),
+    "data": ("Backup & privacy", ft.Icons.LOCK_OUTLINE_ROUNDED),
+    "help": ("Help & feedback", ft.Icons.HELP_OUTLINE_ROUNDED),
 }
 
 
@@ -58,15 +58,15 @@ def _menu(app: "App", p: Profile) -> list[ft.Control]:
     w = f"{kg_to_lb(p.weight_kg):.0f} lb" if app.svc.imperial else f"{p.weight_kg:.1f} kg"
     rs = app.store.reminders()
     summary = th.card(
-        ft.Row([ft.Container(ft.Icon(ft.Icons.PERSON, color=ft.Colors.WHITE, size=28), width=52, height=52, border_radius=26,
+        ft.Row([ft.Container(ft.Image(src="logo.png", width=40, height=40), width=56, height=56, border_radius=28,
                              alignment=ft.Alignment.CENTER,
-                             gradient=ft.RadialGradient(colors=["#6fcf8f", "#1f7a4d"], center=ft.Alignment(-0.4, -0.4))),
+                             gradient=ft.RadialGradient(colors=["#fff3c4", "#d2f1df"], center=ft.Alignment(0, -0.2))),
                 ft.Column([ft.Text(tr.name, size=th.T.BODY + 1, font_family=th.FONT_BOLD, max_lines=1,
                                    overflow=ft.TextOverflow.ELLIPSIS),
                            th.muted(f"{w} · {GOALS[p.goal][0].split(' (')[0]} · {len(p.training_days)} training days a week",
                                     th.T.CAPTION)], spacing=0, expand=True)], spacing=12),
-        ft.Row([cx.stat_tile("Training day", f"{tt.kcal:,}", "kcal", icon=ft.Icons.FITNESS_CENTER),
-                cx.stat_tile("Rest day", f"{rt.kcal:,}", "kcal", icon=ft.Icons.SELF_IMPROVEMENT)], spacing=8),
+        ft.Row([cx.stat_tile("Training day", f"{tt.kcal:,}", "kcal", icon=ft.Icons.FITNESS_CENTER_ROUNDED),
+                cx.stat_tile("Rest day", f"{rt.kcal:,}", "kcal", icon=ft.Icons.SELF_IMPROVEMENT_ROUNDED)], spacing=8),
         spacing=12)
     subs = {
         "body": f"{'Female' if p.sex == 'female' else 'Male'}, {p.age} · {w} · {GOALS[p.goal][0].split(' (')[0].lower()}",
@@ -150,7 +150,7 @@ def _body(app: "App", p: Profile) -> list[ft.Control]:
                                                                                     "reading.", ref_out=auto_weight),
                 spacing=12),
         th.card(ft.Row([goal]), ft.Row([activity]), spacing=12),
-        ft.Row([ft.FilledButton("Save", icon=ft.Icons.CHECK, on_click=save, expand=True)]),
+        ft.Row([ft.FilledButton("Save", icon=ft.Icons.CHECK_ROUNDED, on_click=save, expand=True)]),
     ]
 
 
@@ -204,7 +204,7 @@ def _training(app: "App", p: Profile) -> list[ft.Control]:
         ok = lo - 0.05 <= gkg <= hi + 0.05
         recs.append(cx.metric_row(key.title(), f"{g} g · {gkg:.1f} g/kg (range {lo:g}–{hi:g})",
                                   (gkg - lo * 0.5) / (hi * 1.2 - lo * 0.5) if hi else 0, th.MACRO_COLORS[key],
-                                  icon=ft.Icons.CHECK_CIRCLE if ok else ft.Icons.INFO_OUTLINE,
+                                  icon=ft.Icons.CHECK_CIRCLE_ROUNDED if ok else ft.Icons.INFO_OUTLINE_ROUNDED,
                                   icon_color=th.ink(th.STATUS_COLORS["met"] if ok else "#e08a2b"), height=6))
     return [
         th.card(ft.Row([training]), desc, th.label("Hours of training"), load_row,
@@ -212,7 +212,7 @@ def _training(app: "App", p: Profile) -> list[ft.Control]:
                 th.muted("Switch any single day between training and rest on Today.", th.T.CAPTION),
                 cx.toggle_row("More carbs on training days", p.carb_cycling,
                               sub="Fewer on rest days, same weekly total.", ref_out=cycling), spacing=12),
-        th.card(th.heading(f"Fuelling for {tr.name.split(' (')[0].lower()}", icon=ft.Icons.BOLT,
+        th.card(th.heading(f"Fuelling for {tr.name.split(' (')[0].lower()}", icon=ft.Icons.BOLT_ROUNDED,
                            icon_color=th.emphasis_color(tr.emphasis)),
                 *recs,
                 *[ft.Row([ft.Text("•"), ft.Text(tip, size=th.T.LABEL, expand=True)],
@@ -234,7 +234,7 @@ def _training(app: "App", p: Profile) -> list[ft.Control]:
                                  controls=[ft.Row([ov_fields["kcal"], ov_fields["protein"]], spacing=10),
                                            ft.Row([ov_fields["carbs"], ov_fields["fat"]], spacing=10)],
                                  controls_padding=ft.Padding.only(bottom=8)), padding=ft.Padding.symmetric(horizontal=16, vertical=4)),
-        ft.Row([ft.FilledButton("Save", icon=ft.Icons.CHECK, on_click=save, expand=True)]),
+        ft.Row([ft.FilledButton("Save", icon=ft.Icons.CHECK_ROUNDED, on_click=save, expand=True)]),
     ]
 
 
@@ -251,7 +251,7 @@ def _targets(app: "App", p: Profile) -> list[ft.Control]:
                                  ft.Text(f"{getattr(t, k)} g", size=th.T.LABEL, font_family=th.FONT_SEMI),
                                  th.muted(f"{t.gkg[k]:.1f} g/kg", th.T.CAPTION, width=72, text_align=ft.TextAlign.RIGHT)])
                          for k in ("carbs", "protein", "fat")],
-                       ft.Row([ft.Icon(ft.Icons.WATER_DROP, size=14, color=th.MACRO_COLORS["water"]),
+                       ft.Row([ft.Icon(ft.Icons.WATER_DROP_ROUNDED, size=14, color=th.MACRO_COLORS["water"]),
                                ft.Text("Water", size=th.T.LABEL, expand=True),
                                ft.Text(app.svc.water_fmt(t.water_ml), size=th.T.LABEL, font_family=th.FONT_SEMI),
                                ft.Container(width=72)]), spacing=8)
@@ -259,15 +259,15 @@ def _targets(app: "App", p: Profile) -> list[ft.Control]:
     out: list[ft.Control] = [
         ft.Row([cx.stat_tile("Resting burn", f"{tt.bmr:,}", "kcal, at complete rest"),
                 cx.stat_tile("Daily burn", f"{tt.tdee:,}", "kcal, with activity")], spacing=8),
-        day_card("Training day", ft.Icons.FITNESS_CENTER, tt),
-        day_card("Rest day", ft.Icons.SELF_IMPROVEMENT, rt),
+        day_card("Training day", ft.Icons.FITNESS_CENTER_ROUNDED, tt),
+        day_card("Rest day", ft.Icons.SELF_IMPROVEMENT_ROUNDED, rt),
         th.muted(f"Weekly average {weekly:,} kcal a day over {n_train} training and {7 - n_train} rest days."
                  + (" Your daily burn follows your weigh-ins (Progress → Trends)." if p.use_adaptive else ""), th.T.CAPTION),
     ]
     if tt.floor_applied:
         out.append(cx.note("Your target was raised to a safe minimum. Only go lower with professional guidance.", "warn"))
     out += [cx.note(n, "info") for n in tt.notes]
-    out.append(ft.Row([ft.TextButton("Change training or goal", icon=ft.Icons.TUNE, on_click=lambda _: _open(app, "training"))]))
+    out.append(ft.Row([ft.TextButton("Change training or goal", icon=ft.Icons.TUNE_ROUNDED, on_click=lambda _: _open(app, "training"))]))
     return out
 
 
@@ -306,11 +306,11 @@ def _reminders(app: "App", p: Profile) -> list[ft.Control]:
             check_row.update()
 
         check_row.controls = [ft.Row([cx.time_field(getp, v, f"Check-in {i + 1}", lambda nv, i=i: setter(i, nv), width=118),
-                                      ft.IconButton(ft.Icons.CLOSE, icon_size=16, tooltip="Remove",
+                                      ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=16, tooltip="Remove",
                                                     on_click=lambda _, i=i: remove(i))], spacing=0, tight=True)
                               for i, v in enumerate(checkins)]
         if len(checkins) < 3:
-            check_row.controls.append(ft.TextButton("Add a check-in", icon=ft.Icons.ADD, on_click=add))
+            check_row.controls.append(ft.TextButton("Add a check-in", icon=ft.Icons.ADD_ROUNDED, on_click=add))
 
     draw_checks()
     how = ("Your phone delivers these even when Sapling is closed." if notifier.can_schedule
@@ -345,11 +345,11 @@ def _reminders(app: "App", p: Profile) -> list[ft.Control]:
         th.card(cx.toggle_row("Send me reminders", rs["enabled"], ref_out=enabled_ref, on_change=dim,
                               sub="Never more than you ask for. " + how),
                 ft.Divider(height=4), options, spacing=12),
-        th.card(th.heading("Your day", icon=ft.Icons.SCHEDULE),
+        th.card(th.heading("Your day", icon=ft.Icons.SCHEDULE_ROUNDED),
                 th.muted("Meal times set your pace: half an hour after lunch you'd expect a bit over half the day's food.",
                          th.T.CAPTION),
                 ft.Row([wake, sleep], spacing=10), ft.Row(list(meals.values()), spacing=8), spacing=12),
-        ft.Row([ft.FilledButton("Save", icon=ft.Icons.CHECK, on_click=save, expand=True),
+        ft.Row([ft.FilledButton("Save", icon=ft.Icons.CHECK_ROUNDED, on_click=save, expand=True),
                 ft.OutlinedButton("Send a test", on_click=lambda _: app.page.run_task(notifier.test))], spacing=8),
     ]
 
@@ -452,17 +452,17 @@ def _data(app: "App", p: Profile) -> list[ft.Control]:
                     "Export a backup first if you want to keep what's here.", restore, "Replace")
 
     return [
-        th.card(ft.Row([ft.Icon(ft.Icons.LOCK_OUTLINE, color=th.ACCENT, size=28),
+        th.card(ft.Row([ft.Icon(ft.Icons.LOCK_OUTLINE_ROUNDED, color=th.ACCENT, size=28),
                         ft.Column([ft.Text("Private by design", size=th.T.BODY, font_family=th.FONT_SEMI),
                                    th.muted("Everything stays on this device. No account, no cloud, no ads. Online food "
                                             "searches send only what you type.", th.T.CAPTION)], spacing=2, expand=True)],
                        spacing=12, vertical_alignment=ft.CrossAxisAlignment.START)),
         th.card(th.label("Backup"),
                 th.muted("Save a copy of everything to a file, for a new phone or just in case.", th.T.CAPTION),
-                ft.Row([ft.FilledTonalButton("Export backup", icon=ft.Icons.DOWNLOAD, on_click=export),
-                        ft.OutlinedButton("Restore", icon=ft.Icons.UPLOAD, on_click=import_)], wrap=True), spacing=10),
+                ft.Row([ft.FilledTonalButton("Export backup", icon=ft.Icons.DOWNLOAD_ROUNDED, on_click=export),
+                        ft.OutlinedButton("Restore", icon=ft.Icons.UPLOAD_ROUNDED, on_click=import_)], wrap=True), spacing=10),
         th.card(th.label("Danger zone"),
-                ft.Row([ft.OutlinedButton("Erase all data", icon=ft.Icons.DELETE_FOREVER, on_click=erase_dialog,
+                ft.Row([ft.OutlinedButton("Erase all data", icon=ft.Icons.DELETE_FOREVER_ROUNDED, on_click=erase_dialog,
                                           style=ft.ButtonStyle(color=th.ink(th.STATUS_COLORS["over"]),
                                                                side=ft.BorderSide(1, th.STATUS_COLORS["over"])))]),
                 spacing=10),
@@ -505,14 +505,14 @@ def _help(app: "App", p: Profile) -> list[ft.Control]:
         ft.Row([key, ft.TextButton("Save", on_click=save_key)]),
     ]
     if os.getenv("NUTRITRACK_DEBUG"):
-        dev.append(ft.TextButton("Simulate an error", icon=ft.Icons.BUG_REPORT, on_click=boom))
+        dev.append(ft.TextButton("Simulate an error", icon=ft.Icons.BUG_REPORT_ROUNDED, on_click=boom))
     return [
         th.card(th.label("Something not working?"),
                 th.muted("Copy the diagnostics and paste them into your bug report. They include app versions, record "
                          "counts and recent errors, never your food or body data.", th.T.CAPTION),
-                ft.Row([ft.FilledTonalButton("Copy diagnostics", icon=ft.Icons.CONTENT_COPY,
+                ft.Row([ft.FilledTonalButton("Copy diagnostics", icon=ft.Icons.CONTENT_COPY_ROUNDED,
                                              on_click=lambda _: app.copy(diagnostics.report(app.store, app.page))),
-                        ft.OutlinedButton("Save to file", icon=ft.Icons.DOWNLOAD, on_click=export_log)], wrap=True),
+                        ft.OutlinedButton("Save to file", icon=ft.Icons.DOWNLOAD_ROUNDED, on_click=export_log)], wrap=True),
                 spacing=10),
         th.card(ft.ExpansionTile(title=ft.Text("Advanced", size=th.T.BODY - 1, font_family=th.FONT_SEMI), tile_padding=0,
                                  controls=dev, controls_padding=ft.Padding.only(bottom=8)),

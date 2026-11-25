@@ -62,10 +62,10 @@ def _garden(app: "App") -> list[ft.Control]:
         return lambda _: cx.info_sheet(app.page, title, th.muted(text, th.T.LABEL))
 
     stats = ft.Row([
-        cx.stat_tile("Streak", f"{h.streak}", "days in a row", icon=ft.Icons.LOCAL_FIRE_DEPARTMENT, color=th.FIRE,
+        cx.stat_tile("Streak", f"{h.streak}", "days in a row", icon=ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, color=th.FIRE,
                      on_click=explain("Streak", f"Days in a row with a full tree ({TREE_DAY}+ points). Your best is {h.best}.")),
-        cx.stat_tile("Full trees", f"{h.tree_days}", f"best streak {h.best}", icon=ft.Icons.PARK, color=th.ACCENT),
-        cx.stat_tile("Shields", f"{h.shields}", "of 2", icon=ft.Icons.SHIELD, color=th.SHIELD,
+        cx.stat_tile("Full trees", f"{h.tree_days}", f"best streak {h.best}", icon=ft.Icons.PARK_ROUNDED, color=th.ACCENT),
+        cx.stat_tile("Shields", f"{h.shields}", "of 2", icon=ft.Icons.SHIELD_ROUNDED, color=th.SHIELD,
                      on_click=explain("Shields", "Every 7 days in a row earns a shield (you can hold 2). A shield covers "
                                                  "one missed day, so a busy day doesn't wipe out your streak.")),
     ], spacing=8)
@@ -93,7 +93,7 @@ def _garden(app: "App") -> list[ft.Control]:
             border = ft.Border.all(2, th.ACCENT) if d == today else None
         else:
             content = ft.Stack([ft.Container(num, left=3, top=1),
-                                *([ft.Container(ft.Icon(ft.Icons.SHIELD, size=14, color=th.SHIELD), alignment=ft.Alignment.CENTER,
+                                *([ft.Container(ft.Icon(ft.Icons.SHIELD_ROUNDED, size=14, color=th.SHIELD), alignment=ft.Alignment.CENTER,
                                                 left=0, right=0, top=0, bottom=0)] if mark == "shielded" else [])])
             bg, border = None, ft.Border.all(2 if d == today else 1, th.ACCENT if d == today else ft.Colors.OUTLINE_VARIANT)
         tip = (f"{pretty_date(k)}: {sc} points" if sc is not None else
@@ -103,10 +103,10 @@ def _garden(app: "App") -> list[ft.Control]:
                                   ink=d <= today))
     months = sorted({(start + timedelta(days=i)).strftime("%B") for i in range(0, 7 * weeks, 7)},
                     key=lambda m: [(start + timedelta(days=i)).strftime("%B") for i in range(0, 7 * weeks, 7)].index(m))
-    legend = ft.Row([th.icon_text(ft.Icons.PARK, "logged", th.ACCENT, size=th.T.CAPTION),
-                     th.icon_text(ft.Icons.CHECK_BOX_OUTLINE_BLANK, "missed", th.MUTED, size=th.T.CAPTION),
-                     th.icon_text(ft.Icons.SHIELD, "shield", th.SHIELD, size=th.T.CAPTION)], spacing=14, wrap=True)
-    calendar = th.card(th.heading("Calendar", " – ".join(months), icon=ft.Icons.CALENDAR_MONTH),
+    legend = ft.Row([th.icon_text(ft.Icons.PARK_ROUNDED, "logged", th.ACCENT, size=th.T.CAPTION),
+                     th.icon_text(ft.Icons.CHECK_BOX_OUTLINE_BLANK_ROUNDED, "missed", th.MUTED, size=th.T.CAPTION),
+                     th.icon_text(ft.Icons.SHIELD_ROUNDED, "shield", th.SHIELD, size=th.T.CAPTION)], spacing=14, wrap=True)
+    calendar = th.card(th.heading("Calendar", " – ".join(months), icon=ft.Icons.CALENDAR_MONTH_ROUNDED),
                        ft.ResponsiveRow(cells, columns=7, spacing=4, run_spacing=4), legend,
                        th.muted("Tap a day to look back at what you ate.", th.T.CAPTION))
 
@@ -124,7 +124,7 @@ def _garden(app: "App") -> list[ft.Control]:
         seeds.append(ft.Container(ft.Column([
             ft.Image(src=tree_src(k, 4, 112, season=svc.season()), width=72, height=72, opacity=0.3 if locked else 1),
             ft.Text(sp.name, size=th.T.CAPTION, font_family=th.FONT_SEMI, text_align=ft.TextAlign.CENTER, max_lines=2),
-            *([th.icon_text(ft.Icons.LOCK, f"Level {sp.level}", th.MUTED, size=th.T.CAPTION)] if locked else []),
+            *([th.icon_text(ft.Icons.LOCK_ROUNDED, f"Level {sp.level}", th.MUTED, size=th.T.CAPTION)] if locked else []),
         ], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER), col={"xs": 4, "sm": 2}, padding=8,
             border_radius=th.R.MD,
             border=ft.Border.all(2 if k == seed else 1, th.ACCENT if k == seed else ft.Colors.OUTLINE_VARIANT),
@@ -153,14 +153,14 @@ def _garden(app: "App") -> list[ft.Control]:
     tiles = []
     for r, ok, left in status:
         tiles.append(ft.Container(ft.Column([
-            ft.Icon(getattr(ft.Icons, r.icon, ft.Icons.STAR) if ok else ft.Icons.LOCK_OUTLINE, size=22,
+            ft.Icon(getattr(ft.Icons, r.icon + "_ROUNDED", getattr(ft.Icons, r.icon, ft.Icons.STAR_ROUNDED)) if ok else ft.Icons.LOCK_OUTLINE_ROUNDED, size=22,
                     color=th.ACCENT if ok else th.MUTED),
             ft.Text(r.name, size=th.T.CAPTION, font_family=th.FONT_SEMI, text_align=ft.TextAlign.CENTER, max_lines=2),
         ], spacing=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER), col={"xs": 4, "sm": 2}, padding=8,
             border_radius=th.R.MD, opacity=1 if ok else 0.75,
             bgcolor=ft.Colors.with_opacity(0.10, th.ACCENT) if ok else ft.Colors.SURFACE_CONTAINER,
             tooltip=r.blurb if ok else f"{r.blurb}. Needs {needs_text(r, left)}"))
-    reward_items: list[ft.Control] = [th.heading("Your valley", f"{got} of {len(status)} unlocked", icon=ft.Icons.LANDSCAPE)]
+    reward_items: list[ft.Control] = [th.heading("Your valley", f"{got} of {len(status)} unlocked", icon=ft.Icons.LANDSCAPE_ROUNDED)]
     if nxt:
         r, what = nxt
         have = reward_progress(r, h, lv.level)
@@ -171,13 +171,13 @@ def _garden(app: "App") -> list[ft.Control]:
 
     from .forest_view import ForestView
     return [ForestView(app).control, hero, stats, rewards_card, calendar, seed_card,
-            ft.Row([ft.TextButton("How your tree grows", icon=ft.Icons.HELP_OUTLINE, on_click=how)],
+            ft.Row([ft.TextButton("How your tree grows", icon=ft.Icons.HELP_OUTLINE_ROUNDED, on_click=how)],
                    alignment=ft.MainAxisAlignment.CENTER)]
 
 
-RULES = [(ft.Icons.LOCAL_FIRE_DEPARTMENT, "Calories close to target (within 10%)", "20"),
-         (ft.Icons.FITNESS_CENTER, "Protein 90% or more", "15"),
-         (ft.Icons.RICE_BOWL, "Carbs and fat near target", "15"),
+RULES = [(ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, "Calories close to target (within 10%)", "20"),
+         (ft.Icons.FITNESS_CENTER_ROUNDED, "Protein 90% or more", "15"),
+         (ft.Icons.RICE_BOWL_ROUNDED, "Carbs and fat near target", "15"),
          (ft.Icons.SPA_OUTLINED, "Vitamins and minerals covered", "20"),
-         (ft.Icons.WATER_DROP, "Water goal", "15"),
-         (ft.Icons.MEDICATION, "Supplements taken", "10")]
+         (ft.Icons.WATER_DROP_ROUNDED, "Water goal", "15"),
+         (ft.Icons.MEDICATION_ROUNDED, "Supplements taken", "10")]

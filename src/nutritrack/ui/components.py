@@ -61,8 +61,8 @@ def empty_state(icon, text: str, action: ft.Control | None = None, title: str | 
 def note(text: str, kind: str = "info", action: ft.Control | None = None, icon=None) -> ft.Container:
     """A tinted inline message. kind: info | warn | good."""
     color = {"info": th.ACCENT, "warn": "#e08a2b", "good": th.STATUS_COLORS["met"], "blue": th.SHIELD}[kind]
-    ic = icon or {"info": ft.Icons.INFO_OUTLINE, "warn": ft.Icons.WARNING_AMBER_ROUNDED,
-                  "good": ft.Icons.CHECK_CIRCLE_OUTLINE, "blue": ft.Icons.INFO_OUTLINE}[kind]
+    ic = icon or {"info": ft.Icons.INFO_OUTLINE_ROUNDED, "warn": ft.Icons.WARNING_AMBER_ROUNDED,
+                  "good": ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED, "blue": ft.Icons.INFO_OUTLINE_ROUNDED}[kind]
     body: ft.Control = ft.Text(text, size=th.T.LABEL)
     if action is not None:  # the action goes under the text so the message never gets squeezed
         body = ft.Column([body, action], spacing=2, tight=True)
@@ -145,7 +145,7 @@ def time_field(page_getter: Callable[[], ft.Page], value: str, label: str = "Tim
     """A read-only field that opens the system time picker. `.value` stays "HH:MM". Leave out the clock icon where
     several fields share a row, so "12:30" never gets cut off."""
     field = ft.TextField(label=label, value=value, read_only=True, dense=True, border_radius=12, width=width,
-                         suffix_icon=ft.Icons.SCHEDULE if icon else None)
+                         suffix_icon=ft.Icons.SCHEDULE_ROUNDED if icon else None)
 
     state = {"open": False}
 

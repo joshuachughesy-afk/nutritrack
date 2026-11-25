@@ -58,11 +58,11 @@ class Ambient:
                                 shadow=[ft.BoxShadow(blur_radius=4, color=ft.Colors.with_opacity(0.5, "#6c8fb3"))])
         if k == "petals":
             return ft.Container(width=7, height=10, border_radius=5, bgcolor=color)
-        icon = {"leaves": ft.Icons.ECO, "hearts": ft.Icons.FAVORITE, "fireworks": ft.Icons.AUTO_AWESOME,
-                "twinkle": ft.Icons.AUTO_AWESOME, "lanterns": ft.Icons.LIGHT, "clover": ft.Icons.SPA,
-                "sprouts": ft.Icons.LOCAL_FLORIST, "bats": ft.Icons.FLUTTER_DASH, "sun": ft.Icons.WB_SUNNY}[k]
+        icon = {"leaves": ft.Icons.ECO_ROUNDED, "hearts": ft.Icons.FAVORITE_ROUNDED, "fireworks": ft.Icons.AUTO_AWESOME_ROUNDED,
+                "twinkle": ft.Icons.AUTO_AWESOME_ROUNDED, "lanterns": ft.Icons.LIGHT_ROUNDED, "clover": ft.Icons.SPA_ROUNDED,
+                "sprouts": ft.Icons.LOCAL_FLORIST_ROUNDED, "bats": ft.Icons.FLUTTER_DASH_ROUNDED, "sun": ft.Icons.WB_SUNNY_ROUNDED}[k]
         if k == "sun":  # a warm glow behind a bright sun
-            return ft.Container(ft.Icon(ft.Icons.WB_SUNNY, size=38, color="#ffb300"), width=58, height=58,
+            return ft.Container(ft.Icon(ft.Icons.WB_SUNNY_ROUNDED, size=38, color="#ffb300"), width=58, height=58,
                                 border_radius=29, alignment=ft.Alignment.CENTER,
                                 gradient=ft.RadialGradient(colors=[ft.Colors.with_opacity(0.55, "#fff3b0"),
                                                                    ft.Colors.with_opacity(0.0, "#fff3b0")]))

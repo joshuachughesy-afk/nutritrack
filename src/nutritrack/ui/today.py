@@ -65,7 +65,7 @@ def build(app: "App") -> list[ft.Control]:
     tree = card(app, "tree", t, tot)
     if tree:
         controls.append(tree)
-    controls += [_meal(app, m, label, icon) for m, label, icon in MEALS]
+    controls.append(_meals(app))
     controls.append(ft.ResponsiveRow([ft.Container(card(app, "water", t, tot), col={"xs": 12, "md": 6}),
                                       ft.Container(card(app, "supps", t, tot), col={"xs": 12, "md": 6})],
                                      spacing=16, run_spacing=16))
@@ -110,7 +110,7 @@ def _header(app: "App") -> ft.Control:
                       style=ft.ButtonStyle(bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH)),
     ], spacing=6)
     date_line = ft.Container(ft.Row([th.muted(sub.upper() if is_today else sub, th.T.CAPTION, font_family=th.FONT_SEMI),
-                                     ft.Icon(ft.Icons.EXPAND_MORE, size=16, color=th.MUTED)], spacing=2, tight=True),
+                                     ft.Icon(ft.Icons.EXPAND_MORE_ROUNDED, size=16, color=th.MUTED)], spacing=2, tight=True),
                              on_click=pick_date, tooltip="Pick a date")
     left: list[ft.Control] = [date_line, th.title(title, 26)]
     if not is_today:
@@ -139,9 +139,9 @@ def _holiday_banner(app: "App") -> ft.Control | None:
         app.render()
 
     return ft.Container(ft.Row([
-        ft.Icon(getattr(ft.Icons, hol.icon, ft.Icons.CELEBRATION), color=th.ink(hol.accent)),
+        ft.Icon(getattr(ft.Icons, hol.icon + "_ROUNDED", getattr(ft.Icons, hol.icon, ft.Icons.CELEBRATION_ROUNDED)), color=th.ink(hol.accent)),
         ft.Text(hol.greeting, size=th.T.LABEL, expand=True),
-        ft.IconButton(ft.Icons.CLOSE, icon_size=16, tooltip="Dismiss", on_click=dismiss),
+        ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=16, tooltip="Dismiss", on_click=dismiss),
     ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=ft.Padding.only(left=12, top=4, bottom=4, right=4), border_radius=th.R.MD,
         bgcolor=ft.Colors.with_opacity(0.14, hol.accent))
@@ -251,9 +251,9 @@ def _summary(app: "App", t, tot) -> ft.Control:
     # One coaching line instead of a second table of bars.
     if pace:
         on, text = coach_line(list(pace.values()), app.svc.water_fmt, app.current_meal(), total["kcal"] > 0)
-        coach = cx.note(text, "good" if on else "info", icon=ft.Icons.CHECK_CIRCLE_OUTLINE if on else ft.Icons.TIMER_OUTLINED)
+        coach = cx.note(text, "good" if on else "info", icon=ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED if on else ft.Icons.TIMER_OUTLINED)
     elif early_msg:
-        coach = cx.note(early_msg, "info", icon=ft.Icons.WB_TWILIGHT)
+        coach = cx.note(early_msg, "info", icon=ft.Icons.WB_TWILIGHT_ROUNDED)
     else:
         coach = None
 
@@ -269,10 +269,10 @@ def _summary(app: "App", t, tot) -> ft.Control:
               for tip in tr.tips],
             th.muted("The black pin on each bar shows where you'd expect to be by now, based on your meal times.", th.T.CAPTION))
 
-    plan = ft.Container(ft.Row([ft.Icon(ft.Icons.BOLT, size=16, color=th.ink(th.emphasis_color(tr.emphasis))),
+    plan = ft.Container(ft.Row([ft.Icon(ft.Icons.BOLT_ROUNDED, size=16, color=th.ink(th.emphasis_color(tr.emphasis))),
                                 ft.Text(f"{tr.name.split(' (')[0]} · {tr.emphasis.lower()}", size=th.T.CAPTION,
                                         font_family=th.FONT_SEMI, color=th.ink(th.emphasis_color(tr.emphasis))),
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=th.MUTED)], spacing=4, tight=True),
+                                ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, size=14, color=th.MUTED)], spacing=4, tight=True),
                         padding=ft.Padding.symmetric(horizontal=10, vertical=5), border_radius=th.R.PILL,
                         bgcolor=ft.Colors.with_opacity(0.14, th.emphasis_color(tr.emphasis)), on_click=explain,
                         tooltip="Why these targets?")
@@ -326,11 +326,11 @@ def _tree_card(app: "App") -> ft.Control | None:
                           th.muted(f"A day of {TREE_DAY}+ points grows a full tree and keeps your streak going. Every 7 days "
                                    "in a row earns a shield (you can hold 2). A shield covers one missed day, so a busy "
                                    "day doesn't wipe out your streak.", th.T.LABEL))
-        pills = [ft.Container(th.pill(ft.Icons.LOCAL_FIRE_DEPARTMENT, f"{h.streak} days" if h.streak else "Start a streak",
+        pills = [ft.Container(th.pill(ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, f"{h.streak} days" if h.streak else "Start a streak",
                                       th.FIRE), on_click=shield_info,
                               tooltip=f"{h.streak}-day streak")]
         if h.shields:
-            pills.append(ft.Container(th.pill(ft.Icons.SHIELD, str(h.shields), th.SHIELD),
+            pills.append(ft.Container(th.pill(ft.Icons.SHIELD_ROUNDED, str(h.shields), th.SHIELD),
                                       on_click=shield_info, tooltip=f"{h.shields} shield{'s' if h.shields > 1 else ''}: "
                                                                     "each covers one missed day"))
         info.append(ft.Row(pills, spacing=6, wrap=True, run_spacing=6))
@@ -379,28 +379,29 @@ def _meal(app: "App", meal: str, label: str, icon) -> ft.Control:
 
     photos = [_photo_row(app, meal, ph) for ph in app.svc.photos(app.date, meal)]
 
-    if not entries and photos:
-        return th.card(th.heading(label, "photo to log", icon=icon), *photos, spacing=8)
-    if not entries:  # an empty meal is one compact row, not a whole card
-        actions: list[ft.Control] = []
-        if yesterday:
-            actions.append(ft.TextButton("Copy yesterday", icon=ft.Icons.REPLAY_ROUNDED, on_click=copy))
-        actions.append(ft.IconButton(ft.Icons.ADD_ROUNDED, tooltip=f"Add to {label.lower()}", on_click=open_add,
-                                     style=ft.ButtonStyle(bgcolor=ft.Colors.with_opacity(0.14, th.ACCENT)),
-                                     icon_color=th.ACCENT))
-        return ft.Container(ft.Row([
-            ft.Container(ft.Icon(icon, size=18, color=th.MUTED), padding=6),
-            ft.Column([ft.Text(label, size=th.T.BODY, font_family=th.FONT_SEMI),
-                       th.muted("Nothing yet", th.T.CAPTION, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)],
-                      spacing=0, expand=True),
-            *actions], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            padding=ft.Padding.only(left=10, right=6, top=6, bottom=6), border_radius=th.R.LG,
-            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT), on_click=open_add, ink=True)
+    head_actions: list[ft.Control] = []
+    if not entries and yesterday:
+        head_actions.append(ft.TextButton("Repeat", icon=ft.Icons.REPLAY_ROUNDED, on_click=copy,
+                                          tooltip=f"Copy yesterday's {label.lower()}"))
+    head_actions.append(ft.IconButton(ft.Icons.ADD_ROUNDED, tooltip=f"Add to {label.lower()}", on_click=open_add,
+                                      style=ft.ButtonStyle(bgcolor=ft.Colors.with_opacity(0.14, th.ACCENT)),
+                                      icon_color=th.ACCENT, icon_size=20))
+    sub_text = f"{fmt(kcal)} kcal · {len(entries)} item{'s' if len(entries) != 1 else ''}" if entries else \
+        ("Photo to log" if photos else "Nothing yet")
+    header = ft.Row([
+        ft.Container(ft.Icon(icon, size=18, color=th.ACCENT if entries else th.MUTED), padding=7, border_radius=th.R.SM,
+                     bgcolor=ft.Colors.with_opacity(0.12 if entries else 0.06, th.ACCENT if entries else ft.Colors.ON_SURFACE)),
+        ft.Column([ft.Text(label, size=th.T.BODY, font_family=th.FONT_SEMI),
+                   th.muted(sub_text, th.T.CAPTION, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)], spacing=0, expand=True),
+        *head_actions], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+    if not entries:  # an empty meal is just its header row
+        return ft.Column([header, *photos], spacing=8, tight=True)
 
     rows: list[ft.Control] = []
     for e in entries:
         n = e["n"]
         row = ft.Container(ft.Row([
+            _food_glyph(app, e),
             ft.Column([ft.Text(e["name"], size=th.T.BODY - 1, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
                                font_family=th.FONT_SEMI),
                        th.muted(f"{e['amount_label']} · P {round(n['protein'])} · C {round(n['carbs'])} · F {round(n['fat'])}",
@@ -409,21 +410,47 @@ def _meal(app: "App", meal: str, label: str, icon) -> ft.Control:
             ft.Text(fmt(n["kcal"]), size=th.T.BODY, font_family=th.FONT_BOLD),
             ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, size=18, color=th.MUTED),
         ], vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
-            padding=ft.Padding.only(left=12, right=6, top=8, bottom=8), border_radius=th.R.MD,
-            bgcolor=ft.Colors.SURFACE_CONTAINER, ink=True,
+            padding=ft.Padding.only(left=8, right=4, top=7, bottom=7), border_radius=th.R.MD,
+            bgcolor=ft.Colors.SURFACE_CONTAINER_LOW, ink=True,
             on_click=lambda _, e=e: (motion.haptic("select"), add_food.open_sheet(app, meal, edit=e)))
-        swipe_bg = ft.Container(ft.Row([ft.Icon(ft.Icons.DELETE_OUTLINE, color=ft.Colors.WHITE), ft.Text("Remove", color=ft.Colors.WHITE)],
+        swipe_bg = ft.Container(ft.Row([ft.Icon(ft.Icons.DELETE_OUTLINE_ROUNDED, color=ft.Colors.WHITE), ft.Text("Remove", color=ft.Colors.WHITE)],
                                        alignment=ft.MainAxisAlignment.END), bgcolor=th.STATUS_COLORS["over"], border_radius=th.R.MD,
                                 padding=ft.Padding.only(right=16))
         rows.append(ft.Dismissible(content=row, key=e["id"], dismiss_direction=ft.DismissDirection.END_TO_START,
                                    background=swipe_bg, secondary_background=swipe_bg,
                                    on_dismiss=lambda _, e=e: remove(e)))
 
-    actions = [ft.FilledTonalButton("Add food", icon=ft.Icons.ADD_ROUNDED, on_click=open_add),
-               ft.TextButton("Save meal", icon=ft.Icons.BOOKMARK_ADD_OUTLINED,
-                             on_click=lambda _: save_entries_as_plan(app, entries, "meal", f"My {label.lower()}"))]
-    return th.card(th.heading(label, f"{fmt(kcal)} kcal", icon=icon), *photos, *rows, ft.Row(actions, wrap=True, spacing=4),
-                   spacing=8)
+    save = ft.TextButton("Save meal", icon=ft.Icons.BOOKMARK_ADD_OUTLINED,
+                         on_click=lambda _: save_entries_as_plan(app, entries, "meal", f"My {label.lower()}"),
+                         style=ft.ButtonStyle(padding=ft.Padding.symmetric(horizontal=8)))
+    return ft.Column([header, *photos, *rows, ft.Row([save], alignment=ft.MainAxisAlignment.END)], spacing=6, tight=True)
+
+
+FOOD_GLYPHS = {"Protein": (ft.Icons.SET_MEAL_ROUNDED, "#4c7cf0"), "Dairy": (ft.Icons.LOCAL_DRINK_ROUNDED, "#5aa9d6"),
+               "Grains": (ft.Icons.BAKERY_DINING_ROUNDED, "#e0a33d"), "Legumes": (ft.Icons.GRAIN_ROUNDED, "#a0663c"),
+               "Fruit": (ft.Icons.APPLE_ROUNDED if hasattr(ft.Icons, "APPLE_ROUNDED") else ft.Icons.SPA_ROUNDED, "#e0473f"),
+               "Vegetables": (ft.Icons.ECO_ROUNDED, "#2f9a5a"), "Nuts & fats": (ft.Icons.EGG_ROUNDED, "#c08a3e"),
+               "Recipe": (ft.Icons.MENU_BOOK_ROUNDED, "#7b61ff")}
+
+
+def _food_glyph(app: "App", e: dict) -> ft.Control:
+    """A small tinted tile showing what kind of food it is, so a meal reads at a glance."""
+    f = app.svc.find_food(e["food_id"]) if e.get("food_id") else None
+    cat = "Recipe" if f is not None and f.source == "recipe" else (f.category if f is not None else "")
+    icon, col = FOOD_GLYPHS.get(cat, (ft.Icons.RESTAURANT_ROUNDED, "#8a948f"))
+    return ft.Container(ft.Icon(icon, size=16, color=th.ink(col)), width=32, height=32, border_radius=10,
+                        alignment=ft.Alignment.CENTER, bgcolor=ft.Colors.with_opacity(0.14, col))
+
+
+def _meals(app: "App") -> ft.Control:
+    """All four meals in one card, separated by hairlines, instead of four boxes stacked down the screen."""
+    total = sum(e["n"]["kcal"] for e in app.store.entries(app.date))
+    sections: list[ft.Control] = []
+    for i, (m, label, icon) in enumerate(MEALS):
+        if i:
+            sections.append(ft.Divider(height=14, thickness=1, color=ft.Colors.with_opacity(0.5, ft.Colors.OUTLINE_VARIANT)))
+        sections.append(_meal(app, m, label, icon))
+    return th.card(th.heading("Meals", f"{fmt(total)} kcal", icon=ft.Icons.RESTAURANT_ROUNDED), *sections, spacing=10)
 
 
 def _photo_row(app: "App", meal: str, ph: dict) -> ft.Control:
@@ -443,7 +470,7 @@ def _photo_row(app: "App", meal: str, ph: dict) -> ft.Control:
         ft.Column([ft.Text("Photo to log", size=th.T.LABEL + 1, font_family=th.FONT_SEMI),
                    th.muted(f"Saved {ph['created'][11:16]}", th.T.CAPTION)], spacing=0, expand=True),
         ft.FilledTonalButton("Log it", on_click=lambda _: add_food.open_sheet(app, meal, photo=ph)),
-        ft.IconButton(ft.Icons.CLOSE, icon_size=18, tooltip="Discard photo", on_click=discard),
+        ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=18, tooltip="Discard photo", on_click=discard),
     ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=8, border_radius=th.R.MD, bgcolor=ft.Colors.with_opacity(0.08, th.ACCENT))
 
@@ -464,7 +491,7 @@ def micro_row(m, target, pct, status, tot) -> ft.Control:
     color = {"met": th.ACCENT_SOFT, "ok-limit": th.ACCENT_SOFT, "over": "#e08a2b"}.get(status, th.MACRO_COLORS["protein"])
     food_pct = min(tot.food[m.key] / target.target, 1) if target.target else 0
     supp_pct = max(0.0, min(pct, 1) - food_pct)
-    icon = {"met": ft.Icons.CHECK_CIRCLE, "ok-limit": ft.Icons.CHECK_CIRCLE, "over": ft.Icons.WARNING_AMBER_ROUNDED}.get(status)
+    icon = {"met": ft.Icons.CHECK_CIRCLE_ROUNDED, "ok-limit": ft.Icons.CHECK_CIRCLE_ROUNDED, "over": ft.Icons.WARNING_AMBER_ROUNDED}.get(status)
     value = f"{fmt(tot.total[m.key])} of {fmt(target.target)} {m.unit}{' max' if m.limit else ''}"
     if not m.limit:
         value += f" · {round(pct * 100)}%"
@@ -564,9 +591,9 @@ def _water(app: "App", t, tot) -> ft.Control:
                       *([th.muted(f"During exercise, drink about {'14–27 oz' if imperial else '400–800 ml'} an hour, "
                                   "more in the heat.", th.T.CAPTION)] if t.day_type == "training" else []))
 
-    return th.card(th.heading("Water", ft.IconButton(ft.Icons.INFO_OUTLINE, icon_size=18, tooltip="Why this much?",
+    return th.card(th.heading("Water", ft.IconButton(ft.Icons.INFO_OUTLINE_ROUNDED, icon_size=18, tooltip="Why this much?",
                                                      on_click=why),
-                              icon=ft.Icons.WATER_DROP, icon_color=th.MACRO_COLORS["water"]),
+                              icon=ft.Icons.WATER_DROP_ROUNDED, icon_color=th.MACRO_COLORS["water"]),
                    glass, ft.Row(buttons, spacing=6), th.muted(reason if len(parts) > 1 else "", th.T.CAPTION)
                    if len(parts) > 1 else ft.Container(), spacing=10)
 
@@ -589,7 +616,7 @@ def _supp_checklist(app: "App") -> ft.Control:
         done = (s.id, time) in taken
         due = is_today and not done and time <= now
         rows.append(ft.Container(ft.Row([
-            ft.Icon(ft.Icons.CHECK_CIRCLE if done else ft.Icons.RADIO_BUTTON_UNCHECKED, size=24,
+            ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED if done else ft.Icons.RADIO_BUTTON_UNCHECKED_ROUNDED, size=24,
                     color=th.ACCENT if done else ft.Colors.OUTLINE),
             ft.Column([ft.Text(s.name, size=th.T.BODY - 1, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
                                font_family=th.FONT_SEMI, color=th.MUTED if done else None),
@@ -601,10 +628,10 @@ def _supp_checklist(app: "App") -> ft.Control:
             on_click=lambda _, s=s, t=time: toggle(s, t)))
     done_count = sum(1 for s, t in doses if (s.id, t) in taken)
     if not doses:
-        return th.card(th.heading("Supplements", icon=ft.Icons.MEDICATION),
+        return th.card(th.heading("Supplements", icon=ft.Icons.MEDICATION_ROUNDED),
                        cx.empty_state(ft.Icons.MEDICATION_OUTLINED, "Add what you take and it counts toward your "
                                       "vitamins and minerals, with reminders at the right time.",
-                                      ft.FilledTonalButton("Add your stack", icon=ft.Icons.ADD, on_click=lambda _: app.go("supps"))))
+                                      ft.FilledTonalButton("Add your stack", icon=ft.Icons.ADD_ROUNDED, on_click=lambda _: app.go("supps"))))
     due_now = [(s, t) for s, t in doses if is_today and (s.id, t) not in taken and t <= now]
 
     def take_all(_):
@@ -616,10 +643,10 @@ def _supp_checklist(app: "App") -> ft.Control:
                   undo=lambda: [app.store.toggle_dose(key, s, t) for s, t in due_now])
 
     key = app.date
-    take_all = ft.TextButton(f"Take all {len(due_now)} due", icon=ft.Icons.DONE_ALL, on_click=take_all) \
+    take_all = ft.TextButton(f"Take all {len(due_now)} due", icon=ft.Icons.DONE_ALL_ROUNDED, on_click=take_all) \
         if len(due_now) >= 2 else None
     return th.card(
-        th.heading("Supplements", take_all or f"{done_count} of {len(doses)} taken", icon=ft.Icons.MEDICATION),
+        th.heading("Supplements", take_all or f"{done_count} of {len(doses)} taken", icon=ft.Icons.MEDICATION_ROUNDED),
         th.bar(done_count / len(doses), th.ACCENT, height=6, key=f"supps:{app.date}"),
         ft.Column(rows, spacing=0), spacing=6)
 

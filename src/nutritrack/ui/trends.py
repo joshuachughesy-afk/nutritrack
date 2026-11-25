@@ -28,7 +28,7 @@ def build(app: "App") -> list[ft.Control]:
 
     rng = cx.tabs([(str(n), f"{n} days") for n in (7, 30, 90)], str(days), set_range)
     from . import recap
-    last_week = ft.Row([ft.TextButton("Last week's recap", icon=ft.Icons.AUTO_STORIES,
+    last_week = ft.Row([ft.TextButton("Last week's recap", icon=ft.Icons.AUTO_STORIES_ROUNDED,
                                       on_click=lambda _: recap.open_sheet(app))], alignment=ft.MainAxisAlignment.END)
     summary = app.svc.period(days)
     return [rng, last_week, _adaptive_card(app), _weight_card(app, days), _calorie_card(app, summary), _averages_card(app, summary),
@@ -57,8 +57,8 @@ def _weight_card(app: "App", days: int) -> ft.Control:
     series = weight_trend(app.store.weights())
     start = date.fromisoformat(today).toordinal() - days + 1
     shown = [(d, w, t) for d, w, t in series if date.fromisoformat(d).toordinal() >= start]
-    items: list[ft.Control] = [th.heading("Weight", icon=ft.Icons.MONITOR_WEIGHT),
-                               ft.Row([field, ft.FilledButton("Log", icon=ft.Icons.CHECK, on_click=save)],
+    items: list[ft.Control] = [th.heading("Weight", icon=ft.Icons.MONITOR_WEIGHT_ROUNDED),
+                               ft.Row([field, ft.FilledButton("Log", icon=ft.Icons.CHECK_ROUNDED, on_click=save)],
                                       vertical_alignment=ft.CrossAxisAlignment.CENTER)]
     if shown:
         x = lambda d: date.fromisoformat(d).toordinal() - start  # noqa: E731
@@ -111,9 +111,9 @@ def _adaptive_card(app: "App") -> ft.Control:
                                "a week, and it updates as you go.", th.T.LABEL),
                       th.muted(f"Standard estimate (Mifflin-St Jeor × activity): {fmt(a.formula)} kcal a day.", th.T.CAPTION))
 
-    head = th.heading("Your real daily burn", ft.IconButton(ft.Icons.INFO_OUTLINE, icon_size=18, on_click=how,
+    head = th.heading("Your real daily burn", ft.IconButton(ft.Icons.INFO_OUTLINE_ROUNDED, icon_size=18, on_click=how,
                                                             tooltip="How this works"),
-                      icon=ft.Icons.AUTO_GRAPH)
+                      icon=ft.Icons.AUTO_GRAPH_ROUNDED)
     if not a.ready:
         return th.card(head, th.muted(f"{a.reason} Until then your targets use the standard estimate "
                                       f"({fmt(a.formula)} kcal a day).", th.T.LABEL), spacing=8)
@@ -127,7 +127,7 @@ def _adaptive_card(app: "App") -> ft.Control:
         body += [cx.note(f"Your targets use {fmt(a.blended)} kcal a day as your burn.", "good"),
                  ft.TextButton("Use the standard estimate instead", on_click=lambda _: use(False))]
     else:
-        body.append(ft.Row([ft.FilledButton("Use it for my targets", icon=ft.Icons.CHECK, on_click=lambda _: use(True))]))
+        body.append(ft.Row([ft.FilledButton("Use it for my targets", icon=ft.Icons.CHECK_ROUNDED, on_click=lambda _: use(True))]))
     return th.card(*body, spacing=8)
 
 
@@ -159,7 +159,7 @@ def _calorie_card(app: "App", s) -> ft.Control:
         summary = (f"Averaging {fmt(s.avg_kcal)} kcal on {s.logged_days} logged days, about {fmt(abs(avg_diff))} "
                    f"{'above' if avg_diff > 0 else 'below'} your target of {fmt(s.avg_target_kcal)}.")
     return th.card(
-        th.heading("Calories", icon=ft.Icons.LOCAL_FIRE_DEPARTMENT, icon_color=th.FIRE),
+        th.heading("Calories", icon=ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, icon_color=th.FIRE),
         ft.Row([_legend(th.ACCENT, "Eaten"), _legend(ft.Colors.with_opacity(0.3, th.ACCENT), "Target"),
                 _legend(ft.Colors.with_opacity(0.45, th.ACCENT), "Today so far")], spacing=14, wrap=True),
         chart, th.muted(summary, th.T.CAPTION),
@@ -174,11 +174,11 @@ def _averages_card(app: "App", s) -> ft.Control:
 
     rows = [row(k.title(), s.avg_macros[k], s.avg_macro_targets[k], "g", th.MACRO_COLORS[k]) for k in ("carbs", "protein", "fat")]
     rows.append(row("Water", s.avg_water / 1000, s.avg_water_target / 1000, "L", th.MACRO_COLORS["water"]))
-    tiles = [cx.stat_tile("Full trees", f"{s.tree_days} of {len(s.days)}", "days", icon=ft.Icons.PARK)]
+    tiles = [cx.stat_tile("Full trees", f"{s.tree_days} of {len(s.days)}", "days", icon=ft.Icons.PARK_ROUNDED)]
     if s.supplement_adherence is not None:
         tiles.append(cx.stat_tile("Supplements", f"{round(s.supplement_adherence * 100)}%", "of doses taken",
-                                  icon=ft.Icons.MEDICATION))
-    return th.card(th.heading("Daily averages", f"{s.logged_days} logged days", icon=ft.Icons.INSIGHTS),
+                                  icon=ft.Icons.MEDICATION_ROUNDED))
+    return th.card(th.heading("Daily averages", f"{s.logged_days} logged days", icon=ft.Icons.INSIGHTS_ROUNDED),
                    *rows, ft.Row(tiles, spacing=8))
 
 
@@ -196,7 +196,7 @@ def _micro_card(s) -> ft.Control:
         covered += v >= 1
         rows.append(ft.Container(cx.metric_row(m.label, f"{round(v * 100)}%", min(v, 1),
                                                th.ACCENT_SOFT if v >= 1 else th.MACRO_COLORS["protein"],
-                                               icon=ft.Icons.CHECK_CIRCLE if v >= 1 else None, height=6),
+                                               icon=ft.Icons.CHECK_CIRCLE_ROUNDED if v >= 1 else None, height=6),
                                  col={"xs": 12, "sm": 6}))
     low = [MICRO_BY_KEY[k].label for k in s.consistently_low]
     note = cx.note(f"Often low: {', '.join(low)}. Today's Vitamins & minerals card suggests foods that fill these.", "info") \

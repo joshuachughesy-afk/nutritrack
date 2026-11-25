@@ -58,7 +58,7 @@ class ForestView:
         count = len(self.trees)
         self.control = th.card(
             th.heading("Your forest", f"{count} tree{'s' if count != 1 else ''} planted · {self.season}",
-                       icon=ft.Icons.FOREST),
+                       icon=ft.Icons.FOREST_ROUNDED),
             ft.Container(ft.Stack([gesture, *([ambient.layer(app, self.theme.ambient, 12, seed=7)] if self.theme.ambient != "sun" else []),
                                    ft.Container(self.fly_btn, right=8, top=8)]), aspect_ratio=W / H,
                          border_radius=18, clip_behavior=ft.ClipBehavior.HARD_EDGE),

@@ -117,16 +117,35 @@ def label(text: str, **kw) -> ft.Text:
 
 
 # ---------- surfaces ----------
-SHADOW = [ft.BoxShadow(blur_radius=24, spread_radius=-6, color=ft.Colors.with_opacity(0.10, "#0b2e1c"), offset=ft.Offset(0, 8))]
+# Two soft layers: a wide ambient shadow and a tight contact shadow. No hard outline, so cards float on the backdrop.
+SHADOW = [ft.BoxShadow(blur_radius=32, spread_radius=-12, color=ft.Colors.with_opacity(0.12, "#0b2e1c"), offset=ft.Offset(0, 14)),
+          ft.BoxShadow(blur_radius=3, spread_radius=0, color=ft.Colors.with_opacity(0.05, "#0b2e1c"), offset=ft.Offset(0, 1))]
 
 
 def card(*controls: ft.Control, padding: int = 18, spacing: int = 10, bgcolor=None, gradient=None) -> ft.Container:
     return ft.Container(
         content=ft.Column(list(controls), spacing=spacing, tight=True),
-        padding=padding, border_radius=22, gradient=gradient,
+        padding=padding, border_radius=24, gradient=gradient,
         bgcolor=None if gradient else (bgcolor or ft.Colors.SURFACE_CONTAINER_LOWEST),
-        border=ft.Border.all(1, ft.Colors.with_opacity(0.6, ft.Colors.OUTLINE_VARIANT)), shadow=SHADOW,
+        border=ft.Border.all(1, ft.Colors.with_opacity(0.35 if DARK else 0.0, ft.Colors.OUTLINE_VARIANT)), shadow=SHADOW,
     )
+
+
+# Each tab has its own tinted backdrop that fades into the page colour, so screens feel distinct, not identical lists
+# of white boxes. Today's follows the season.
+SURFACE = {False: "#f5f6f1", True: "#0f1612"}
+BACKDROPS = {
+    False: {"spring": "#dcf2ff", "summer": "#cfe9ff", "autumn": "#fbe3cc", "winter": "#e3ebf5",
+            "foods": "#fbeed8", "supps": "#ebe5fa", "garden": "#d9f0de", "profile": "#e3ecf2"},
+    True: {"spring": "#14324a", "summer": "#123552", "autumn": "#3a2a1c", "winter": "#1d2838",
+           "foods": "#33291a", "supps": "#2a2440", "garden": "#16332a", "profile": "#1c2a33"},
+}
+
+
+def backdrop(key: str, dark: bool) -> ft.LinearGradient:
+    top = BACKDROPS[dark].get(key, BACKDROPS[dark]["profile"])
+    return ft.LinearGradient(begin=ft.Alignment.TOP_CENTER, end=ft.Alignment.BOTTOM_CENTER,
+                             colors=[top, SURFACE[dark], SURFACE[dark]], stops=[0.0, 0.42, 1.0])
 
 
 def heading(text: str, trailing: ft.Control | str | None = None, size: int = 17, icon=None, icon_color=None) -> ft.Control:

@@ -113,14 +113,14 @@ def open_review(app: "App", key: str) -> None:
         app.render()
         app.toast(f"Logged {n} item{'s' if n != 1 else ''} to today")
 
-    actions: list[ft.Control] = [ft.FilledButton("Open this day", icon=ft.Icons.OPEN_IN_NEW, on_click=open_day)]
+    actions: list[ft.Control] = [ft.FilledButton("Open this day", icon=ft.Icons.OPEN_IN_NEW_ROUNDED, on_click=open_day)]
     if r["entries"]:
         actions += [ft.OutlinedButton("Save day", icon=ft.Icons.BOOKMARK_ADD_OUTLINED,
                                       on_click=lambda _: save_entries_as_plan(app, r["entries"], "day", d.strftime("%A %d %b"))),
-                    ft.TextButton("Log again today", icon=ft.Icons.REPLAY, on_click=copy_today)]
+                    ft.TextButton("Log again today", icon=ft.Icons.REPLAY_ROUNDED, on_click=copy_today)]
 
     body = ft.Column([
-        ft.Row([ft.Container(expand=True), ft.IconButton(ft.Icons.CLOSE, on_click=lambda _: app.page.pop_dialog())]),
+        ft.Row([ft.Container(expand=True), ft.IconButton(ft.Icons.CLOSE_ROUNDED, on_click=lambda _: app.page.pop_dialog())]),
         header, stats, *macro_rows, ft.Divider(height=10), *meals, ft.Row(actions, wrap=True, spacing=8),
     ], spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
     app.page.show_dialog(ft.BottomSheet(

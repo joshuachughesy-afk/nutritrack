@@ -15,11 +15,11 @@ from . import theme as th
 from .state import UIState
 
 NAV = [
-    ("today", "Today", ft.Icons.WB_SUNNY_OUTLINED, ft.Icons.WB_SUNNY),
-    ("foods", "Foods", ft.Icons.RESTAURANT_OUTLINED, ft.Icons.RESTAURANT),
-    ("supps", "Stack", ft.Icons.MEDICATION_OUTLINED, ft.Icons.MEDICATION),
-    ("garden", "Progress", ft.Icons.PARK_OUTLINED, ft.Icons.PARK),
-    ("profile", "Profile", ft.Icons.PERSON_OUTLINE, ft.Icons.PERSON),
+    ("today", "Today", ft.Icons.WB_SUNNY_OUTLINED, ft.Icons.WB_SUNNY_ROUNDED),
+    ("foods", "Foods", ft.Icons.RESTAURANT_OUTLINED, ft.Icons.RESTAURANT_ROUNDED),
+    ("supps", "Stack", ft.Icons.MEDICATION_OUTLINED, ft.Icons.MEDICATION_ROUNDED),
+    ("garden", "Progress", ft.Icons.PARK_OUTLINED, ft.Icons.PARK_ROUNDED),
+    ("profile", "Profile", ft.Icons.PERSON_OUTLINE_ROUNDED, ft.Icons.PERSON_ROUNDED),
 ]
 THEME_MODES = {"system": ft.ThemeMode.SYSTEM, "light": ft.ThemeMode.LIGHT, "dark": ft.ThemeMode.DARK}
 
@@ -63,8 +63,10 @@ class App:
             destinations=[ft.NavigationBarDestination(icon=i, selected_icon=si, label=l) for _, l, i, si in NAV],
             on_change=self._on_nav, animation_duration=400,
         )
-        page.add(ft.SafeArea(content=ft.Container(content=self.body, padding=ft.Padding.only(left=16, right=16, top=10),
-                                                  expand=True), expand=True))
+        self.frame = ft.Container(content=ft.SafeArea(content=ft.Container(content=self.body,
+                                                                           padding=ft.Padding.only(left=16, right=16, top=10),
+                                                                           expand=True), expand=True), expand=True)
+        page.add(self.frame)
         motion.bind(page)
         from .notify import Notifier
 
@@ -152,6 +154,10 @@ class App:
         target = self.sub_body if sub else self.body
         # leave room under the last card so the quick-log button never covers it
         target.controls = motion.entrance(controls + [ft.Container(height=96 if fab else 16)])
+        key = self.svc.theme(self.date).season if self.view == "today" and not onboard else \
+            ("garden" if onboard else self.view)
+        self.frame.gradient = th.backdrop(key, self.dark)
+        self.sub_view.decoration = ft.BoxDecoration(gradient=th.backdrop(key, self.dark))
         self.page.floating_action_button = self._quick_log_button() if fab else None
         self._sync_views(sub)
         self.page.update()
@@ -203,9 +209,9 @@ class App:
 
     def _error_card(self, details: str) -> ft.Control:
         return th.card(
-            th.heading("This screen hit a problem", icon=ft.Icons.ERROR_OUTLINE, icon_color=th.STATUS_COLORS["over"]),
+            th.heading("This screen hit a problem", icon=ft.Icons.ERROR_OUTLINE_ROUNDED, icon_color=th.STATUS_COLORS["over"]),
             th.muted("Your data is safe. The error was saved to the log (Profile → Help & feedback).", 13),
-            ft.Row([ft.FilledButton("Try again", icon=ft.Icons.REFRESH, on_click=lambda _: self.render()),
+            ft.Row([ft.FilledButton("Try again", icon=ft.Icons.REFRESH_ROUNDED, on_click=lambda _: self.render()),
                     ft.TextButton("Details", on_click=lambda _: self.show_error_details(details)),
                     ft.TextButton("Go to Today", on_click=lambda _: self.go("today", today_key()))], wrap=True))
 

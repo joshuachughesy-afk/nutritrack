@@ -26,6 +26,13 @@ product = "Sapling"
 company = "Sapling"
 copyright = "Sapling"
 
+[tool.flet.splash]
+color = "#f5f6f1"
+dark_color = "#0f1612"
+
+[tool.flet.android]
+adaptive_icon_background = "#17663f"
+
 [tool.flet.app]
 path = "src"
 

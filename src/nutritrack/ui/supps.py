@@ -56,13 +56,13 @@ def build(app: "App") -> list[ft.Control]:
     totals, warnings = analyze_stack(supps, t)
     active = [s for s in supps if s.active]
     doses = sum(len(s.times) for s in active)
-    add_btn = ft.FilledButton("Add", icon=ft.Icons.ADD, on_click=lambda _: _open_picker(app))
+    add_btn = ft.FilledButton("Add", icon=ft.Icons.ADD_ROUNDED, on_click=lambda _: _open_picker(app))
     out: list[ft.Control] = [cx.screen_title("Your stack", trailing=add_btn)]
     if not supps:
         out.append(th.card(cx.empty_state(
             ft.Icons.MEDICATION_OUTLINED, "Add what you take. It counts toward your vitamins and minerals, gets checked "
             "against safe maximums, and you get a reminder at the right time.",
-            ft.FilledButton("Add a supplement", icon=ft.Icons.ADD, on_click=lambda _: _open_picker(app)),
+            ft.FilledButton("Add a supplement", icon=ft.Icons.ADD_ROUNDED, on_click=lambda _: _open_picker(app)),
             title="Supplements, sorted")))
         return out
     out.append(th.muted(f"{len(active)} active · {doses} dose{'s' if doses != 1 else ''} a day. Tick them off on Today.",
@@ -118,12 +118,12 @@ def build(app: "App") -> list[ft.Control]:
                 th.muted(f"{s.dose_label} · {', '.join(s.times)}{' · with food' if s.with_food else ''}", th.T.CAPTION),
                 *([th.muted(contents, th.T.CAPTION, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)] if contents else []),
             ], spacing=1, expand=True),
-            ft.PopupMenuButton(icon=ft.Icons.MORE_VERT, tooltip="More", items=[
+            ft.PopupMenuButton(icon=ft.Icons.MORE_VERT_ROUNDED, tooltip="More", items=[
                 ft.PopupMenuItem(content=ft.Text("Edit"), icon=ft.Icons.EDIT_OUTLINED, on_click=lambda _, i=s.id: edit(i)),
                 ft.PopupMenuItem(content=ft.Text("Resume" if not s.active else "Pause"),
-                                 icon=ft.Icons.PLAY_ARROW if not s.active else ft.Icons.PAUSE_CIRCLE_OUTLINE,
+                                 icon=ft.Icons.PLAY_ARROW_ROUNDED if not s.active else ft.Icons.PAUSE_CIRCLE_OUTLINE_ROUNDED,
                                  on_click=lambda _, x=s: toggle_pause(x)),
-                ft.PopupMenuItem(content=ft.Text("Remove"), icon=ft.Icons.DELETE_OUTLINE, on_click=lambda _, x=s: delete(x)),
+                ft.PopupMenuItem(content=ft.Text("Remove"), icon=ft.Icons.DELETE_OUTLINE_ROUNDED, on_click=lambda _, x=s: delete(x)),
             ]),
         ], vertical_alignment=ft.CrossAxisAlignment.CENTER), opacity=1 if s.active else 0.6, ink=True,
             on_click=lambda _, i=s.id: edit(i), border_radius=th.R.MD,
@@ -145,7 +145,7 @@ def build(app: "App") -> list[ft.Control]:
                 + (" from supplements" if m.ul_scope == "supplement" else "")) if near else None
         total_rows.append(cx.metric_row(m.label, value, min(pct, 1), "#e08a2b" if over else th.ACCENT_SOFT, note=note,
                                         note_color="#e08a2b" if over else None,
-                                        icon=ft.Icons.WARNING_AMBER_ROUNDED if over else ft.Icons.CHECK_CIRCLE if pct >= 1 else None,
+                                        icon=ft.Icons.WARNING_AMBER_ROUNDED if over else ft.Icons.CHECK_CIRCLE_ROUNDED if pct >= 1 else None,
                                         icon_color=th.ink("#e08a2b" if over else th.ACCENT_SOFT), height=7))
     if total_rows:
         out.append(th.card(th.heading("What your stack adds up to", icon=ft.Icons.SPA_OUTLINED),
@@ -162,7 +162,7 @@ def build(app: "App") -> list[ft.Control]:
     if tips:
         out.append(th.card(ft.ExpansionTile(
             title=ft.Text("Timing tips", size=th.T.BODY, font_family=th.FONT_SEMI), tile_padding=0,
-            leading=ft.Icon(ft.Icons.SCHEDULE, color=th.ACCENT),
+            leading=ft.Icon(ft.Icons.SCHEDULE_ROUNDED, color=th.ACCENT),
             controls=[ft.Row([ft.Text("•"), ft.Text(tip, size=th.T.LABEL, expand=True)],
                              vertical_alignment=ft.CrossAxisAlignment.START) for tip in tips],
             controls_padding=ft.Padding.only(bottom=8)), padding=ft.Padding.symmetric(horizontal=16, vertical=4)))
@@ -188,7 +188,7 @@ def _picker(app: "App") -> list[ft.Control]:
         tiles.append(ft.Container(ft.Row([
             ft.Column([ft.Text(tp.name, font_family=th.FONT_SEMI, size=th.T.LABEL, max_lines=2),
                        th.muted(tp.dose_label, th.T.CAPTION, max_lines=1)], spacing=2, expand=True),
-            ft.Icon(ft.Icons.CHECK_CIRCLE if added else ft.Icons.ADD_CIRCLE_OUTLINE, size=20,
+            ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED if added else ft.Icons.ADD_CIRCLE_OUTLINE_ROUNDED, size=20,
                     color=th.ACCENT if added else th.MUTED),
         ], spacing=6), col={"xs": 6, "sm": 4}, padding=12, border_radius=th.R.MD,
             border=ft.Border.all(1, th.ACCENT if added else ft.Colors.OUTLINE_VARIANT),
@@ -197,10 +197,10 @@ def _picker(app: "App") -> list[ft.Control]:
             on_click=None if added else (lambda _, x=tp: _new(app, x)), ink=not added))
     return [cx.back_header("Add a supplement", back, subtitle="Typical strengths. Adjust to match your label."),
             ft.ResponsiveRow(tiles, spacing=8, run_spacing=8),
-            th.card(ft.Row([ft.Icon(ft.Icons.EDIT_NOTE, color=th.ACCENT),
+            th.card(ft.Row([ft.Icon(ft.Icons.EDIT_NOTE_ROUNDED, color=th.ACCENT),
                             ft.Column([ft.Text("Something else?", font_family=th.FONT_SEMI, size=th.T.BODY),
                                        th.muted("Enter it from the label.", th.T.CAPTION)], spacing=0, expand=True),
-                            ft.FilledTonalButton("Custom", icon=ft.Icons.ADD, on_click=lambda _: _new(app, None))]),
+                            ft.FilledTonalButton("Custom", icon=ft.Icons.ADD_ROUNDED, on_click=lambda _: _new(app, None))]),
                     padding=14)]
 
 
@@ -239,12 +239,12 @@ def _editor(app: "App", editing: str) -> list[ft.Control]:
 
         times_row.controls = [ft.Row([cx.time_field(lambda: app.page, tv, f"Dose {i + 1}", lambda v, i=i: set_time(i, v),
                                                     width=118),
-                                      *([ft.IconButton(ft.Icons.CLOSE, icon_size=16, tooltip="Remove this time",
+                                      *([ft.IconButton(ft.Icons.CLOSE_ROUNDED, icon_size=16, tooltip="Remove this time",
                                                        on_click=lambda _, i=i: remove(i))] if len(times_state) > 1 else [])],
                                      spacing=0, tight=True)
                               for i, tv in enumerate(times_state)]
         if len(times_state) < 4:
-            times_row.controls.append(ft.TextButton("Add a time", icon=ft.Icons.ADD, on_click=add_time))
+            times_row.controls.append(ft.TextButton("Add a time", icon=ft.Icons.ADD_ROUNDED, on_click=add_time))
 
     def add_time(_):
         last = to_min(times_state[-1]) if times_state else 8 * 60
@@ -293,5 +293,5 @@ def _editor(app: "App", editing: str) -> list[ft.Control]:
         *([th.card(th.label("Tips"), *[ft.Row([ft.Text("•"), ft.Text(tip, size=th.T.LABEL, expand=True)],
                                                vertical_alignment=ft.CrossAxisAlignment.START) for tip in tips])]
           if tips else []),
-        ft.Row([ft.FilledButton("Save" if existing else "Add to stack", icon=ft.Icons.CHECK, on_click=save, expand=True)]),
+        ft.Row([ft.FilledButton("Save" if existing else "Add to stack", icon=ft.Icons.CHECK_ROUNDED, on_click=save, expand=True)]),
     ]
