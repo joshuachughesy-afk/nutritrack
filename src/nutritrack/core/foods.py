@@ -135,3 +135,9 @@ FOODS: list[Food] = [
        (598, 7.8, 45.9, 42.6, 10.9, 24, 20, 715, 73, 11.9, 228, 3.3, 2, 0, 0, 0.6, 7.3, 0.3, 0)),
 ]
 
+
+
+def tidy_label(label: str) -> str:
+    """Serving labels saved by older versions ("150.0g") read as "150 g"."""
+    import re
+    return re.sub(r"^(\d+(?:\.\d+)?)\s*(g|ml)$", lambda m: f"{float(m.group(1)):g} {m.group(2)}", label.strip())

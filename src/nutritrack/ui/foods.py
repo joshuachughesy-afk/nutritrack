@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import flet as ft
 
-from ..core.foods import Food, Serving
+from ..core.foods import Food, Serving, tidy_label
 from ..core.nutrition import MICROS, empty_nutrients, fmt, scale_nutrients
 from ..core.recipes import Ingredient, Recipe
 from ..service import pretty_date, today_key
@@ -122,7 +122,7 @@ def _food_row(app: "App", f: Food, on_click) -> ft.Control:
         tag = ("✓ Verified", th.STATUS_COLORS["met"])
     return ft.Container(ft.Row([
         ft.Column([ft.Text(f.name, size=th.T.BODY - 1, font_family=th.FONT_SEMI, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                   ft.Row([th.muted(f"{sv.label} · {fmt(n['kcal'])} kcal · P {round(n['protein'])} · C {round(n['carbs'])} · "
+                   ft.Row([th.muted(f"{tidy_label(sv.label)} · {fmt(n['kcal'])} kcal · P {round(n['protein'])} · C {round(n['carbs'])} · "
                                     f"F {round(n['fat'])}", th.T.CAPTION), *([th.chip(*tag)] if tag else [])],
                           spacing=6, wrap=True)], spacing=2, expand=True),
         ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, color=th.MUTED),

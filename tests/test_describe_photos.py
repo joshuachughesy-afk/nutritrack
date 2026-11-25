@@ -74,3 +74,9 @@ def test_unreadable_photo_still_saves_a_reminder(tmp_path):
     svc = Service(Store(tmp_path / "h.db"))
     ph = svc.add_photo("2026-11-15", "lunch", b"\x00\x00\x00 ftypheic not really an image")
     assert ph["thumb"] == "" and svc.photos("2026-11-15", "lunch")
+
+
+def test_tidy_label_for_older_saved_foods():
+    from nutritrack.core.foods import tidy_label
+    assert tidy_label("150.0g") == "150 g" and tidy_label("12.5 ml") == "12.5 ml"
+    assert tidy_label("1 cup (148 g)") == "1 cup (148 g)"

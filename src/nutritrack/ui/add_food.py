@@ -10,7 +10,7 @@ import flet as ft
 
 from ..core import barcode as bc
 from ..core import online
-from ..core.foods import Food
+from ..core.foods import Food, tidy_label
 from ..core.nutrition import MICROS, empty_nutrients, fmt, scale_nutrients
 from ..core.pacing import MEAL_LABELS
 from ..diagnostics import log
@@ -76,7 +76,7 @@ def open_sheet(app: "App", meal: str, edit: dict | None = None, food: Food | Non
 
         return ft.Container(ft.Row([
             ft.Column([ft.Text(f.name, size=th.T.BODY - 1, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                       ft.Row([th.muted(f"{label} · {kcal} kcal", th.T.CAPTION), *([b] if b else [])], spacing=6, wrap=True)],
+                       ft.Row([th.muted(f"{tidy_label(label)} · {kcal} kcal", th.T.CAPTION), *([b] if b else [])], spacing=6, wrap=True)],
                       spacing=2, expand=True),
             *([ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=th.ACCENT, tooltip=f"Log {label} now", on_click=quick_log)]
               if last else [ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, color=th.MUTED, size=18)]),
